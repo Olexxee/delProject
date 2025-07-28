@@ -13,6 +13,8 @@ import userRoute from "../routes/userRoutes.js";
 import statRoute from "../routes/statRoute.js";
 import router from "../routes/groupRoutes.js";
 import membershipRouter from "../routes/membershipRoute.js";
+import tournamentRouter from "../routes/tournamentRoutes.js";
+import participantRouter from "../routes/participantRoute.js";
 
 const app = express();
 const server = createServer(app);
@@ -49,5 +51,7 @@ app.use("/api/posts", postRoute);
 app.use("/api/stats", statRoute);
 app.use("/api/groups", router);
 app.use("/api/membership", membershipRouter);
+app.use("/api/tournaments", tournamentRouter);
+app.use("/api/participants", participantRouter);
 
 export { server };
