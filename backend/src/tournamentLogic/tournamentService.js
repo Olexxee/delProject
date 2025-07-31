@@ -149,3 +149,62 @@ export const cancelTournament = async ({ tournamentId, userId }) => {
     updatedAt: new Date(),
   });
 };
+
+// Get tournament with fixture summary
+export const getTournamentWithFixtures = async (tournamentId) => {
+  const tournament = await tournamentDb.findTournamentById(tournamentId);
+  if (!tournament) {
+    throw new NotFoundException("Tournament not found");
+  }
+
+  // Get fixture statistics
+  const fixtureStats = await fixtureDb.getTournamentFixtures(tournamentId);
+  const completedFixtures = fixtureStats.filter(f => f.isCompleted).length;
+  const totalFixtures = fixtureStats.length;
+
+  return {
+    ...tournament.toObject(),
+    fixtureStats: {
+      total: totalFixtures,
+      completed: completedFixtures,
+      remaining: totalFixtures - completedFixtures,
+      progress: totalFixtures > 0 ? Math.round((completedFixtures / totalFixtures) * 100) : 0,
+    },
+  };
+};
+
+// Check if tournament is ready to start
+export const checkTournamentReadiness = async (tournamentId) => {
+  const tournament = await tournamentDb.findTournamentById(tournamentId);
+  if (!tournament) {
+    throw new NotFoundException("Tournament not found");
+  }
+
+  const fixturesExist = await fixtureDb.fixturesExist(tournamentId);
+  const hasMinimumParticipants = tournament.currentParticipants >= 4;
+
+  return {
+    isReady: fixturesExist && hasMinimumParticipants && tournament.status === "upcoming",
+    checks: {
+      fixturesGenerated: fixturesExist,
+      minimumParticipants: hasMinimumParticipants,
+      correctStatus: tournament.status === "upcoming",
+    },
+  };
+};
+
+export const getTournamentWithTable = async (tournamentId) => {
+  const tournament = await getTournamentById(tournamentId);
+  const table = await leagueTableService.generateLeagueTable(tournamentId);
+
+  return {
+    tournament,
+    currentTable: table.table.slice(0, 10),
+    tableStats: {
+      totalTeams: table.table.length,
+      matchesPlayed:
+        table.table.reduce((sum, team) => sum + team.matchesPlayed, 0) / 2,
+      goalsScored: table.table.reduce((sum, team) => sum + team.goalsFor, 0),
+    },
+  };
+};

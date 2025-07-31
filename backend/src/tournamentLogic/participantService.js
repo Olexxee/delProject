@@ -187,7 +187,7 @@ const createTournamentStats = async ({ userId, groupId, tournamentId }) => {
   }
 };
 
-// 🎯 STATS UPDATE FUNCTION FOR MATCH RESULTS
+// STATS UPDATE FUNCTION FOR MATCH RESULTS
 export const updateParticipantStats = async ({
   matchId,
   tournamentId,

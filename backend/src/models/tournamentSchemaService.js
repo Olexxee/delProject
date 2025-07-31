@@ -135,3 +135,4 @@ export const checkTournamentCapacity = async (tournamentId) => {
     ...tournament.toObject()
   };
 };
+
