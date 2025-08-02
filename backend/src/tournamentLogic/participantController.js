@@ -1,4 +1,5 @@
 import * as participantService from "./participantService.js";
+import * as userStatsService from "../user/statschemaService.js";
 import { ValidatorClass } from "../lib/classes/validatorClass.js";
 import {
   registerParticipantSchema,
@@ -108,10 +109,12 @@ export const getUserTournaments = asyncWrapper(async (req, res) => {
 // Get tournament standings/leaderboard
 export const getTournamentStandings = asyncWrapper(async (req, res) => {
   const { tournamentId } = req.params;
-
-  // This uses your existing userStatsService
+  
+  // ✅ Get tournament first to get groupId
+  const tournament = await tournamentService.getTournamentById(tournamentId);
+  
   const standings = await userStatsService.getGroupStatsByTournament(
-    req.params.groupId, // You'll need to pass this or get it from tournament
+    tournament.groupId._id || tournament.groupId,
     tournamentId
   );
 

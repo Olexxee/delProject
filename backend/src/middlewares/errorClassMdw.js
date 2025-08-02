@@ -1,7 +1,7 @@
-import { validationException } from "../lib/classes/errorClasses.js";
+import { ValidationException } from "../lib/classes/errorClasses.js";
 
 export default function errorMiddleware(err, req, res, next) {
-  if (err instanceof ValiationException) {
+  if (err instanceof ValidationException) {
     return res.status(err.statusCode).json({
       success: false,
       message: err.message,

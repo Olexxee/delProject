@@ -1,5 +1,5 @@
 import * as fixtureDb from "../models/fixtureSchemaService.js";
-import * as tournamentDb from "./tournamentSchemaService.js";
+import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as membershipService from "../groupLogic/membershipService.js";
 import {
   NotFoundException,

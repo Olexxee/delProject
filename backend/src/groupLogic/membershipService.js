@@ -113,10 +113,11 @@ export const banUserInGroup = async (payload) => {
 
   await assertIsAdmin({ userId: adminId, groupId });
 
-  const targetMembership = await MembershipService.findMembership({
+  const targetMembership = await membershipService.findMembership({
     userId: targetUserId,
     groupId,
   });
+
   if (!targetMembership) throw new NotFoundException("User not in this group");
 
   return await updateMembership({

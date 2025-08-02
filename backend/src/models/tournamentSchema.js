@@ -29,7 +29,6 @@ const tournamentSchema = new mongoose.Schema(
     },
     tournamentCode: {
       type: String,
-      unique: true,
     },
     maxParticipants: {
       type: Number,

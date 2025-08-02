@@ -10,6 +10,7 @@ import {
   NotFoundException,
   BadRequestError,
   UnauthorizedException,
+  ForbiddenError,
 } from "../lib/classes/errorClasses.js";
 
 // 1. Validate group creation
@@ -43,13 +44,10 @@ export const createGroup = async (payload) => {
   return group;
 };
 
-
 // 3. Get group by Nmae search
 
 export const findGroupByName = async (groupName) => {
   const name = groupName.trim();
-
-  console.log("🔍 Querying for groupName:", name);
 
   const result = await groupDb.findGroupByName(name);
 

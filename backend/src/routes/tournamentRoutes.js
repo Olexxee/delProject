@@ -5,7 +5,7 @@ import {
   getGroupTournaments,
   updateTournament,
   cancelTournament,
-} from "../tournaments/tournamentController.js";
+} from "../tournamentLogic/tournamentController.js";
 import authMiddleware from "../middlewares/authenticationMdw.js";
 import { requireGroupAdmin } from "../admin/adminMiddleware.js";
 
@@ -13,7 +13,7 @@ const tournamentRouter = Router();
 
 // Create tournament (group admin only)
 tournamentRouter.post(
-  "/group/:groupId/create",
+  "/groups/:groupId/create-tournament",
   authMiddleware,
   requireGroupAdmin,
   createTournament
@@ -23,7 +23,7 @@ tournamentRouter.post(
 tournamentRouter.get("/:tournamentId", authMiddleware, getTournament);
 
 // Get all tournaments for a group
-tournamentRouter.get("/group/:groupId", authMiddleware, getGroupTournaments);
+tournamentRouter.get("/groups/:groupId", authMiddleware, getGroupTournaments);
 
 // Update tournament (group admin only)
 tournamentRouter.patch(

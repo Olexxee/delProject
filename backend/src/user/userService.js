@@ -72,7 +72,7 @@ export const updateUserByEmail = async (email, updateData) => {
 export const timesFlaggedUser = async (payload) => {
   const user = await User.findById(payload.id);
   return await User.findByIdAndUpdate(
-    userId,
+    payload.id,
     { $inc: { timesKicked: 1 } },
     { new: true }
   );

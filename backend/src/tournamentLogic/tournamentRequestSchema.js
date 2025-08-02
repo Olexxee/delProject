@@ -5,8 +5,8 @@ export const createTournamentSchema = Joi.object({
   name: Joi.string().min(3).max(100).required(),
   description: Joi.string().max(500).allow("").optional(),
   maxParticipants: Joi.number().min(4).max(50).optional().default(20),
-  startDate: Joi.date().min("now").required(),
-  endDate: Joi.date().greater(Joi.ref("startDate")).required(),
+  startDate: Joi.date().min("now").optional(),
+  endDate: Joi.date().greater(Joi.ref("startDate")).optional(),
   registrationDeadline: Joi.date()
     .min("now")
     .max(Joi.ref("startDate"))

@@ -1,4 +1,4 @@
-import * as tournamentDb from "./tournamentSchemaService.js";
+import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as membershipService from "../groupLogic/membershipService.js";
 import * as userStatsService from "../user/statschemaService.js";
 import * as userService from "../user/userService.js";
@@ -12,7 +12,6 @@ import moment from "moment";
 
 // Register user for tournament
 export const registerParticipant = async ({ tournamentId, userId }) => {
-  // Get tournament details
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) {
     throw new NotFoundException("Tournament not found");

@@ -72,7 +72,7 @@ export const getUserGroups = asyncWrapper(async (req, res) => {
 
 // Update membership (e.g. change role or status)
 export const updateMembership = asyncWrapper(async (req, res) => {
-  const { groupId, userId } = req.params; // ✅ Get the user being updated
+  const { groupId, userId } = req.params; 
 
   const updateData = req.body;
 
@@ -82,19 +82,9 @@ export const updateMembership = asyncWrapper(async (req, res) => {
     ...updateData,
   });
 
-  if (existing.roleInGroup === "admin" && roleInGroup === "admin") {
-    throw new BadRequestException("User is already an admin.");
-  }
-
   if (!updated) {
     throw new BadRequestError("Membership not found");
   }
-
-  res.status(200).json({
-    success: true,
-    message: "Membership updated",
-    updated,
-  });
 
   res.status(200).json({
     success: true,

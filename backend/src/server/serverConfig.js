@@ -10,9 +10,10 @@ import { convertHumanReadableTimeToMilliseconds } from "../lib/utils.js";
 import { postRoute } from "../routes/postRoutes.js";
 import path from "path";
 import userRoute from "../routes/userRoutes.js";
-import statRoute from "../routes/statRoute.js";
 import router from "../routes/groupRoutes.js";
 import membershipRouter from "../routes/membershipRoute.js";
+import fixtureRouter from "../routes/fixturesRoute.js";
+import tableRouter from "../routes/tableRoutes.js";
 import tournamentRouter from "../routes/tournamentRoutes.js";
 import participantRouter from "../routes/participantRoute.js";
 
@@ -48,10 +49,12 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use("/api/profile", userRoute);
 app.use("/api/auth", authRoute);
 app.use("/api/posts", postRoute);
-app.use("/api/stats", statRoute);
+// app.use("/api/stats", statRoute);
 app.use("/api/groups", router);
 app.use("/api/membership", membershipRouter);
 app.use("/api/tournaments", tournamentRouter);
 app.use("/api/participants", participantRouter);
+app.use("/api/fixtures", fixtureRouter);
+app.use("/api/tables", tableRouter);
 
 export { server };

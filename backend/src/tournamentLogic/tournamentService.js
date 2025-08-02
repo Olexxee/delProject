@@ -1,6 +1,6 @@
 import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as membershipService from "../groupLogic/membershipService.js";
-import * as userStatsService from "../../user/statschemaService.js";
+import * as userStatsService from "../user/statschemaService.js";
 import * as groupDb from "../groupLogic/gSchemaService.js";
 import {
   ConflictException,

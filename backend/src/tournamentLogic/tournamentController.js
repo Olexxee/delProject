@@ -28,6 +28,7 @@ export const createTournament = asyncWrapper(async (req, res) => {
   res.status(201).json({
     success: true,
     message: "Tournament created successfully",
+    tournamentId: tournament._id,
     tournament,
   });
 });
