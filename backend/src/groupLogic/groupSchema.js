@@ -39,9 +39,23 @@ const GroupSchema = new Schema(
       type: Number,
       default: 1,
     },
+
+    // ✅ Add these inside GroupSchema
+    membersCount: {
+      type: Number,
+      default: 1,
+    },
+    // optional metadata
+    tags: {
+      type: [String],
+      default: [],
+    },
   },
   { timestamps: true }
 );
+
+// ensure group is searchable by lowercase name
+GroupSchema.index({ groupName: "text", description: "text" });
 
 // Generate a unique join code before saving the group
 GroupSchema.pre("save", function (next) {

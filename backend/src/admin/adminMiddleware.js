@@ -21,24 +21,20 @@ export const requirePlatformGroupAdmin = (req, res, next) => {
 };
 
 export const requireGroupAdmin = asyncWrapper(async (req, res, next) => {
-  let groupId;
+  let groupId = req.params.groupId;
 
-  if (req.params.groupId) {
-    groupId = req.params.groupId;
-  } 
-
-  else if (req.params.tournamentId) {
+  if (!groupId && req.params.tournamentId) {
     const tournament = await tournamentDb.findTournamentById(req.params.tournamentId);
-    if (!tournament) throw new NotFoundException("Tournament not found");
-    groupId = tournament.groupId.toString();
-    req.tournament = tournament;
-  } 
-  else {
-    throw new BadRequestError("No groupId or tournamentId provided");
+    if (!tournament) throw new NotFoundError("Tournament not found");
+    groupId = tournament.groupId;
   }
 
-  await membershipService.assertIsAdmin({ userId: req.user._id, groupId });
-  req.groupId = groupId;
+  if (!groupId) throw new BadRequestError("Missing groupId");
+
+  const membership = await membershipService.findMembership({ userId: req.user.id, groupId });
+  if (!membership || membership.role !== "admin") {
+    throw new ForbiddenError("You are not a group admin");
+  }
+
   next();
 });
-

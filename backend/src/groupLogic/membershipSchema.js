@@ -26,6 +26,20 @@ const MembershipSchema = new Schema(
       type: Date,
       default: Date.now,
     },
+    lastActive: {
+      type: Date,
+      default: Date.now,
+    },
+
+    invitedBy: {
+      type: Types.ObjectId,
+      ref: "User",
+    },
+
+    notificationsEnabled: {
+      type: Boolean,
+      default: true,
+    },
   },
   { timestamps: true }
 );

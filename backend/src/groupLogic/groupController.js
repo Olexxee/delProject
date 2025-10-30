@@ -1,35 +1,39 @@
 import * as groupService from "../groupLogic/groupService.js";
+import * as membershipService from "../groupLogic/membershipService.js";
+import * as userService from "../user/userService.js";
+
 import {
   ValidationException,
   NotFoundException,
 } from "../lib/classes/errorClasses.js";
-import * as membershipService from "../groupLogic/membershipService.js";
-import * as userService from "../user/userService.js";
+
 import { ValidatorClass } from "../lib/classes/validatorClass.js";
-import { createGroupSchema, updateGroupSchema } from "./groupRequestSchema.js";
 import { asyncWrapper } from "../lib/utils.js";
+import {
+  createGroupSchema,
+  updateGroupSchema,
+  changeRoleSchema,
+  toggleMuteSchema,
+} from "./groupRequestSchema.js";
 
 const validator = new ValidatorClass();
 
+/* ---------------------------------------------------------
+   🏗️ Create a new group (with chat context)
+--------------------------------------------------------- */
 export const createGroup = asyncWrapper(async (req, res) => {
-  // 1. Validate the input
   const { errors, value } = validator.validate(createGroupSchema, req.body);
   if (errors) throw new ValidationException(errors);
 
   const userId = req.user._id;
   const email = req.user.email;
 
-  // 2. Create the group
-  const group = await groupService.createGroup(
-    {
-      ...value,
-      userId,
-    },
-    email
-  );
+  const { group, chat } = await groupService.createGroup({
+    ...value,
+    userId,
+  });
 
-  // 3. Create membership for the creator (admin)
-
+  // Add membership (admin)
   const membership = await membershipService.createMembership({
     userId,
     groupId: group._id,
@@ -37,37 +41,40 @@ export const createGroup = asyncWrapper(async (req, res) => {
     status: "active",
   });
 
-  // 4. Update user stats
+  // Update user stats
   await userService.findUserByIdAndUpdate(userId, {
     $inc: { groupsCreatedCount: 1, adminGroupsCount: 1 },
     $push: { groupsCreated: group._id },
   });
 
-  // 5. Respond
-  console.log("✅ Group successfully created:", group);
-
   res.status(201).json({
     success: true,
     message: "Group created successfully",
     group,
+    chat,
     membership,
   });
 });
 
+/* ---------------------------------------------------------
+   🔍 Get group by name
+--------------------------------------------------------- */
 export const getGroupByName = asyncWrapper(async (req, res) => {
   const group = await groupService.findGroupByName(req.params.name);
-  console.log("🚀 Controller hit:", req.params.name);
   if (!group) throw new NotFoundException("Group not found");
   res.status(200).json({ success: true, group });
 });
 
+/* ---------------------------------------------------------
+   ✉️ Generate invite link
+--------------------------------------------------------- */
 export const generateInviteLink = asyncWrapper(async (req, res) => {
-  const invite = await groupService.generateInviteLink(
-    req.params.groupId,
-    req.user._id
-  );
+  const { groupId } = req.params;
+  const userId = req.user._id;
 
-  const user = await userService.findUserById(req.user._id);
+  const invite = await groupService.generateInviteLink(groupId, userId);
+  const user = await userService.findUserById(userId);
+
   if (!user) throw new NotFoundException("User not found");
 
   res.status(200).json({
@@ -77,11 +84,14 @@ export const generateInviteLink = asyncWrapper(async (req, res) => {
   });
 });
 
+/* ---------------------------------------------------------
+   🚪 Join group via invite
+--------------------------------------------------------- */
 export const joinGroupByInvite = asyncWrapper(async (req, res) => {
-  const joined = await groupService.joinGroupByInvite(
-    req.params.joinCode,
-    req.user._id
-  );
+  const { joinCode } = req.params;
+  const userId = req.user._id;
+
+  const joined = await groupService.joinGroupByInvite(joinCode, userId);
 
   res.status(200).json({
     success: true,
@@ -90,19 +100,30 @@ export const joinGroupByInvite = asyncWrapper(async (req, res) => {
   });
 });
 
+/* ---------------------------------------------------------
+   👥 Get all members
+--------------------------------------------------------- */
 export const getGroupMembers = asyncWrapper(async (req, res) => {
-  const members = await groupService.getGroupMembers(req.params.groupId);
+  const { groupId } = req.params;
+  const members = await groupService.getGroupMembers(groupId);
+
   res.status(200).json({ success: true, members });
 });
 
+/* ---------------------------------------------------------
+   🚶‍♂️ Leave group
+--------------------------------------------------------- */
 export const leaveGroup = asyncWrapper(async (req, res) => {
-  await groupService.leaveGroup(req.user._id, req.params.groupId);
+  const { groupId } = req.params;
+  await groupService.leaveGroup(req.user._id, groupId);
   res.status(200).json({ success: true, message: "You have left the group" });
 });
 
+/* ---------------------------------------------------------
+   🦶 Kick user (admin only)
+--------------------------------------------------------- */
 export const kickUserFromGroup = asyncWrapper(async (req, res) => {
   const { groupId, userId: targetUserId } = req.params;
-
   await groupService.kickUserFromGroup({
     adminId: req.user._id,
     groupId,
@@ -115,9 +136,15 @@ export const kickUserFromGroup = asyncWrapper(async (req, res) => {
   });
 });
 
+/* ---------------------------------------------------------
+   🛠️ Change member role
+--------------------------------------------------------- */
 export const changeMemberRole = asyncWrapper(async (req, res) => {
+  const { errors, value } = validator.validate(changeRoleSchema, req.body);
+  if (errors) throw new ValidationException(errors);
+
   const { groupId, userId: targetUserId } = req.params;
-  const { newRole } = req.body;
+  const { newRole } = value;
 
   const updated = await groupService.changeMemberRole({
     adminId: req.user._id,
@@ -128,7 +155,51 @@ export const changeMemberRole = asyncWrapper(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: "User role updated",
+    message: "User role updated successfully",
     updated,
+  });
+});
+
+/* ---------------------------------------------------------
+   🔇 Mute or Unmute Group (Admin Only)
+--------------------------------------------------------- */
+export const toggleGroupMute = asyncWrapper(async (req, res) => {
+  const { errors, value } = validator.validate(toggleMuteSchema, req.body);
+  if (errors) throw new ValidationException(errors);
+
+  const { groupId } = req.params;
+  const { mute } = value;
+
+  const result = await groupService.toggleGroupMute({
+    adminId: req.user._id,
+    groupId,
+    mute,
+  });
+
+  res.status(200).json({
+    success: true,
+    message: result.message,
+  });
+});
+
+/* ---------------------------------------------------------
+   🔕 Mute or Unmute Notifications (Membership-level)
+--------------------------------------------------------- */
+export const toggleMemberMute = asyncWrapper(async (req, res) => {
+  const { errors, value } = validator.validate(toggleMuteSchema, req.body);
+  if (errors) throw new ValidationException(errors);
+
+  const { groupId } = req.params;
+  const { mute } = value;
+
+  const result = await groupService.toggleMemberMute({
+    userId: req.user._id,
+    groupId,
+    mute,
+  });
+
+  res.status(200).json({
+    success: true,
+    message: result.message,
   });
 });

@@ -16,3 +16,8 @@ export const updateGroupSchema = Joi.object({
   avatar: Joi.string().uri().allow("").optional(),
   privacy: Joi.string().valid("public", "private", "protected").optional(),
 });
+
+export const toggleMuteSchema = Joi.object({
+  mute: Joi.boolean().required(),
+});
+

@@ -1,4 +1,9 @@
 import { Router } from "express";
+import authMiddleware from "../middlewares/authenticationMdw.js";
+import {
+  requireGroupAdmin,
+  requirePlatformGroupAdmin,
+} from "../admin/adminMiddleware.js";
 import {
   joinGroup,
   leaveGroup,
@@ -6,23 +11,29 @@ import {
   getUserGroups,
   updateMembership,
   banUser,
+  toggleMemberMute,
 } from "../groupLogic/membershipController.js";
-import authMiddleware from "../middlewares/authenticationMdw.js";
-import {
-  requireGroupAdmin,
-  requirePlatformGroupAdmin,
-} from "../admin/adminMiddleware.js";
 
 const membershipRouter = Router();
 
-// Fetch all groups the logged-in user belongs to
+/* ---------------------------------------------------------
+   👥 1️⃣ Fetch all groups the logged-in user belongs to
+--------------------------------------------------------- */
 membershipRouter.get("/my-groups", authMiddleware, getUserGroups);
 
-// Join or leave a group
+/* ---------------------------------------------------------
+   ➕ 2️⃣ Join a group
+--------------------------------------------------------- */
 membershipRouter.post("/:groupId/join", authMiddleware, joinGroup);
-// membershipRouter.post("/:groupId/leave", authMiddleware, leaveGroup); // already have a working controller
 
-// Group membership management
+/* ---------------------------------------------------------
+   🚪 3️⃣ Leave a group
+--------------------------------------------------------- */
+membershipRouter.post("/:groupId/leave", authMiddleware, leaveGroup);
+
+/* ---------------------------------------------------------
+   🧩 4️⃣ Get all members in a group
+--------------------------------------------------------- */
 membershipRouter.get(
   "/:groupId/members",
   authMiddleware,
@@ -30,6 +41,9 @@ membershipRouter.get(
   getGroupMembers
 );
 
+/* ---------------------------------------------------------
+   ⚙️ 5️⃣ Update membership (role, mute, status)
+--------------------------------------------------------- */
 membershipRouter.patch(
   "/:groupId/membership/:userId",
   authMiddleware,
@@ -37,6 +51,18 @@ membershipRouter.patch(
   updateMembership
 );
 
+/* ---------------------------------------------------------
+   🔇 6️⃣ Toggle mute/unmute notifications for current user
+--------------------------------------------------------- */
+membershipRouter.patch(
+  "/:groupId/mute",
+  authMiddleware,
+  toggleMemberMute // user can mute/unmute themselves in a group
+);
+
+/* ---------------------------------------------------------
+   🚫 7️⃣ Ban a user (admin only)
+--------------------------------------------------------- */
 membershipRouter.post(
   "/:groupId/ban/:userId",
   authMiddleware,

@@ -1,128 +1,145 @@
-import * as membershipService from "./membershipSchemaService.js";
+import * as membershipService from "./membershipService.js";
 import * as userService from "../user/userService.js";
-import Group from "./groupSchema.js";
-import * as userStats from "../user/statschemaService.js";
-import * as groupDb from "./gSchemaService.js";
+import { asyncWrapper } from "../lib/utils.js";
 import {
+  BadRequestError,
   NotFoundException,
-  ConflictException,
-  ForbiddenError,
 } from "../lib/classes/errorClasses.js";
+import { ValidatorClass } from "../lib/classes/validatorClass.js";
 
-// Create membership (on join, group creation, createUserStats)
-export const createMembership = async (payload) => {
-  const { userId, groupId, roleInGroup = "member" } = payload;
+const validator = new ValidatorClass();
 
-  const existing = await membershipService.findMembership({ userId, groupId });
-  if (existing) return existing;
+/* ---------------------------------------------------------
+   🧠 1️⃣ Join group
+--------------------------------------------------------- */
+export const joinGroup = asyncWrapper(async (req, res) => {
+  const { groupId } = req.params;
+  const userId = req.user._id;
 
   const membership = await membershipService.createMembership({
     userId,
     groupId,
-    roleInGroup,
-    status: "active",
-    joinedAt: new Date(),
   });
 
-  const group = await groupDb.findGroupById(groupId);
-  if (!group) throw new NotFoundException("Group not found");
-
-  await groupDb.updateGroup(groupId, { $inc: { totalMembers: 1 } });
-
-  await userService.findAndUpdateUserById(userId, {
-    $addToSet: { groups: group.name },
-  });
-
-  // ✅ Create group-wide user stats (tournament will be null)
-  try {
-    await userStats.createUserStats({
-      user: userId,
-      group: groupId,
-      tournamentsPlayedin: null,
+  // Update user’s group stats if successfully joined
+  if (membership) {
+    await userService.findUserByIdAndUpdate(userId, {
+      $inc: { groupsJoinedCount: 1 },
+      $push: { groupsJoined: groupId },
     });
-  } catch (err) {
-    if (err.code !== 11000) {
-      console.error("Error creating user stats:", err);
-    }
   }
 
-  return membership;
-};
+  res.status(201).json({
+    success: true,
+    message: "Joined group successfully",
+    membership,
+  });
+});
 
-// Get membership by user + group
-export const findMembership = async (payload) => {
-  const { userId, groupId } = payload;
-  return await membershipService.findMembership({ userId, groupId });
-};
+/* ---------------------------------------------------------
+   🚪 2️⃣ Leave group
+--------------------------------------------------------- */
+export const leaveGroup = asyncWrapper(async (req, res) => {
+  const { groupId } = req.params;
+  const userId = req.user._id;
 
-// Get all members of a group
-export const findAllMembersInGroup = async (groupId) => {
-  return await membershipService
-    .find({ groupId })
-    .populate("userId", "username email profilePicture")
-    .select("roleInGroup status joinedAt");
-};
+  const left = await membershipService.removeMembership({ userId, groupId });
+  if (!left) throw new NotFoundException("You are not a member of this group");
 
-// Get all groups a user belongs to
-export const findGroupsByUser = async (userId) => {
-  return await membershipService.findGroupsByUser({
+  res.status(200).json({
+    success: true,
+    message: "Left group successfully",
+  });
+});
+
+/* ---------------------------------------------------------
+   👥 3️⃣ Get all members of a group
+--------------------------------------------------------- */
+export const getGroupMembers = asyncWrapper(async (req, res) => {
+  const { groupId } = req.params;
+  const members = await membershipService.findAllMembersInGroup(groupId);
+
+  res.status(200).json({
+    success: true,
+    members,
+  });
+});
+
+/* ---------------------------------------------------------
+   🧩 4️⃣ Get all groups a user belongs to
+--------------------------------------------------------- */
+export const getUserGroups = asyncWrapper(async (req, res) => {
+  const userId = req.user._id;
+  const groups = await membershipService.findGroupsByUser(userId);
+
+  res.status(200).json({
+    success: true,
+    groups,
+  });
+});
+
+/* ---------------------------------------------------------
+   ⚙️ 5️⃣ Update membership (role, mute, or status)
+--------------------------------------------------------- */
+export const updateMembership = asyncWrapper(async (req, res) => {
+  const { groupId, userId } = req.params;
+  const updateData = req.body;
+
+  const updated = await membershipService.updateMembership({
     userId,
-    status: "active",
+    groupId,
+    ...updateData,
   });
-};
 
-// Update membership (role or status)
-export const updateMembership = async (payload) => {
-  const { userId, groupId, ...updateFields } = payload;
-  return await membershipService.updateMembership(
-    { userId, groupId },
-    updateFields,
-    {
-      new: true,
-    }
-  );
-};
+  if (!updated)
+    throw new BadRequestError("Membership not found or update failed");
 
-// Remove user from group
-export const removeMembership = async (payload) => {
-  const { userId, groupId } = payload;
-  const deleted = await membershipService.removeMembership({ userId, groupId });
+  res.status(200).json({
+    success: true,
+    message: `Membership updated for user ${userId}`,
+    updated,
+  });
+});
 
-  if (deleted) {
-    await groupDb.findByIdAndUpdate(groupId, { $inc: { totalMembers: -1 } });
-  }
+/* ---------------------------------------------------------
+   🚫 6️⃣ Ban user from group (admin only)
+--------------------------------------------------------- */
+export const banUser = asyncWrapper(async (req, res) => {
+  const { groupId, userId: targetUserId } = req.params;
+  const adminId = req.user._id;
 
-  return deleted;
-};
+  const result = await membershipService.banUserInGroup({
+    adminId,
+    groupId,
+    targetUserId,
+  });
 
-// Ensure user is admin in group
-export const assertIsAdmin = async (payload) => {
-  const { userId, groupId } = payload;
-  const membership = await membershipService.findMembership({
+  res.status(200).json({
+    success: true,
+    message: "User has been banned from the group",
+    result,
+  });
+});
+
+/* ---------------------------------------------------------
+   🔇 7️⃣ Mute or unmute group notifications
+--------------------------------------------------------- */
+export const toggleMemberMute = asyncWrapper(async (req, res) => {
+  const { groupId } = req.params;
+  const userId = req.user._id;
+  const { mute } = req.body; // expects { mute: true } or { mute: false }
+
+  const result = await membershipService.toggleMemberMute({
     userId,
     groupId,
-  });
-  if (!membership || membership.roleInGroup !== "admin") {
-    throw new ForbiddenError("Only group admins can perform this action");
-  }
-};
-
-// Optional: Ban a user from group
-export const banUserInGroup = async (payload) => {
-  const { adminId, groupId, targetUserId } = payload;
-
-  await assertIsAdmin({ userId: adminId, groupId });
-
-  const targetMembership = await membershipService.findMembership({
-    userId: targetUserId,
-    groupId,
+    mute,
   });
 
-  if (!targetMembership) throw new NotFoundException("User not in this group");
-
-  return await updateMembership({
-    userId: targetUserId,
-    groupId,
-    status: "banned",
+  res.status(200).json({
+    success: true,
+    message:
+      result.message ||
+      `Notifications ${mute ? "muted" : "unmuted"} for this group`,
+    updated: result,
   });
-};
+});

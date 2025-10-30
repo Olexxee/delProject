@@ -61,7 +61,7 @@ export const registerParticipant = async ({ tournamentId, userId }) => {
     userId
   );
 
-  // 🎯 CREATE TOURNAMENT-SPECIFIC USER STATS
+  // CREATE TOURNAMENT-SPECIFIC USER STATS
   await createTournamentStats({
     userId,
     groupId: tournament.groupId._id || tournament.groupId,

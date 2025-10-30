@@ -1,20 +1,24 @@
-import React, { useState, useContext } from "react";
-import fabio from "../assets/Images/fabio.jpg";
-import KeyboardWrapper from "./KeyboardWrapper";
-import Icon from "react-native-vector-icons/FontAwesome";
-import { UserContext } from "../context/UserContext";
+// screens/LoginScreen.jsx
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Alert,
+} from "react-native";
+import Feather from "react-native-vector-icons/Feather";
 
-const Login = () => {
+const LoginPage = ({ navigation }) => {
   const [form, setForm] = useState({
-    username: "",
     email: "",
     password: "",
   });
 
-  const { loginUser } = useContext(UserContext);
-
-  const handleChange = (field, value) => {
-    setForm({ ...form, [field]: value });
+  const handleChange = (key, value) => {
+    setForm({ ...form, [key]: value });
   };
 
   const handleLogin = async () => {
@@ -23,9 +27,7 @@ const Login = () => {
         "http://192.168.43.162:5000/api/auth/login",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         }
       );
@@ -38,7 +40,7 @@ const Login = () => {
       }
 
       if (data.token && data.user) {
-        await loginUser(data.token, data.user); // ✅ use context
+        await loginUser(data.token, data.user); // Assumed to be defined
       } else {
         Alert.alert("Login Failed", "Unexpected response from server");
       }
@@ -48,121 +50,121 @@ const Login = () => {
     }
   };
 
-  const InputWithIcon = ({
+  const RenderInput = ({
     icon,
     placeholder,
     value,
     onChangeText,
-    secureTextEntry,
+    secure = false,
   }) => (
-    <View style={styles.inputContainer}>
-      <Icon name={icon} size={18} color="#888" style={styles.icon} />
+    <View style={styles.inputWrapper}>
+      <Feather name={icon} size={20} color="#999" style={styles.icon} />
       <TextInput
+        style={styles.input}
         placeholder={placeholder}
+        placeholderTextColor="#999"
+        secureTextEntry={secure}
         value={value}
         onChangeText={onChangeText}
-        secureTextEntry={secureTextEntry}
-        style={styles.input}
-        placeholderTextColor="#aaa"
       />
     </View>
   );
 
   return (
-    <ImageBackground source={fabio} style={styles.background}>
-      <KeyboardWrapper>
-        <View style={styles.formContainer}>
-          <Text style={styles.heading}>Login</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.title}>Welcome Back</Text>
 
-          <InputWithIcon
-            icon="user"
-            placeholder="Username"
-            value={form.username}
-            onChangeText={(text) => handleChange("username", text)}
-          />
+      <RenderInput
+        icon="mail"
+        placeholder="Email Address"
+        value={form.email}
+        onChangeText={(text) => handleChange("email", text)}
+      />
+      <RenderInput
+        icon="lock"
+        placeholder="Password"
+        value={form.password}
+        onChangeText={(text) => handleChange("password", text)}
+        secure
+      />
 
-          <InputWithIcon
-            icon="envelope"
-            placeholder="Email"
-            value={form.email}
-            onChangeText={(text) => handleChange("email", text)}
-          />
+      <TouchableOpacity onPress={() => Alert.alert("Feature not implemented")}>
+        <Text style={styles.forgotText}>Forgot Password?</Text>
+      </TouchableOpacity>
 
-          <InputWithIcon
-            icon="lock"
-            placeholder="Password"
-            value={form.password}
-            onChangeText={(text) => handleChange("password", text)}
-            secureTextEntry
-          />
+      <TouchableOpacity style={styles.button} onPress={handleLogin}>
+        <Text style={styles.buttonText}>Log In</Text>
+      </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleLogin} style={styles.button}>
-            <Text style={styles.buttonText}>Log In</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardWrapper>
-    </ImageBackground>
+      <TouchableOpacity onPress={() => navigation.navigate("Register")}>
+        <Text style={styles.linkText}>Don't have an account? Sign Up</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 };
 
+// 🧑‍🎨 Styles
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-    resizeMode: "cover",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  formContainer: {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+  container: {
     padding: 24,
-    borderRadius: 12,
-    width: "100%",
-    maxWidth: 400,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 6,
+    backgroundColor: "#fff",
+    flexGrow: 1,
+    justifyContent: "center",
   },
-  heading: {
+  title: {
     fontSize: 28,
-    fontWeight: "bold",
+    fontWeight: "600",
+    marginBottom: 32,
+    color: "#111",
     textAlign: "center",
-    marginBottom: 24,
-    color: "#333",
   },
-  inputContainer: {
+  inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#f9f9f9",
+    borderColor: "#ddd",
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 4,
     marginBottom: 16,
-    backgroundColor: "#fff",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
   icon: {
-    marginRight: 10,
+    marginRight: 8,
   },
   input: {
     flex: 1,
+    height: 48,
     fontSize: 16,
     color: "#333",
   },
+  forgotText: {
+    textAlign: "right",
+    color: "#4A90E2",
+    marginBottom: 24,
+    fontSize: 14,
+  },
   button: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#4A90E2",
     paddingVertical: 14,
     borderRadius: 10,
-    alignItems: "center",
-    marginTop: 12,
+    marginBottom: 24,
   },
   buttonText: {
+    textAlign: "center",
     color: "#fff",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "500",
+  },
+  linkText: {
+    color: "#4A90E2",
+    textAlign: "center",
+    fontSize: 14,
   },
 });
 
-export default Login;
+export default LoginPage;
