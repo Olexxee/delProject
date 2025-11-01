@@ -14,6 +14,7 @@ import moment from "moment";
 export const validateTournamentCreation = async ({
   userId,
   groupId,
+  type,
   name,
   startDate,
   registrationDeadline,
@@ -48,24 +49,44 @@ export const validateTournamentCreation = async ({
   return { group };
 };
 
-// Create tournament
 export const createTournament = async (payload) => {
-  const { userId, groupId } = payload;
+  const { userId, groupId, type, rounds, maxParticipants } = payload;
 
-  // Validate creation
   const { group } = await validateTournamentCreation(payload);
 
-  // Calculate total matchdays for league
-  const { rounds, maxParticipants } = payload;
-  const roundMultiplier = rounds === "double" ? 2 : 1;
-  const totalMatchdays =
-    maxParticipants > 1 ? (maxParticipants - 1) * roundMultiplier : 0;
+  let totalMatchdays = 0;
+  let structureData = {};
 
-  // Create tournament
+  switch (type) {
+    case "league":
+      const roundMultiplier = rounds === "double" ? 2 : 1;
+      totalMatchdays =
+        maxParticipants > 1 ? (maxParticipants - 1) * roundMultiplier : 0;
+      structureData = { totalMatchdays };
+      break;
+
+    case "cup":
+      // 8 participants → 7 matches total
+      const totalRounds = Math.ceil(Math.log2(maxParticipants));
+      structureData = { totalRounds };
+      break;
+
+    case "hybrid":
+      // Group stage + knockout
+      structureData = {
+        groupStage: true,
+        knockoutRounds: Math.ceil(Math.log2(maxParticipants / 2)), // top half advance
+      };
+      break;
+
+    default:
+      throw new BadRequestError("Invalid tournament type");
+  }
+
   const tournament = await tournamentDb.createTournament({
     ...payload,
     createdBy: userId,
-    totalMatchdays,
+    ...structureData,
   });
 
   if (!tournament) {
@@ -74,6 +95,7 @@ export const createTournament = async (payload) => {
 
   return tournament;
 };
+
 
 // Get tournament details
 export const getTournamentById = async (tournamentId) => {

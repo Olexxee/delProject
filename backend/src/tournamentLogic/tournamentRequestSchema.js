@@ -7,6 +7,7 @@ export const createTournamentSchema = Joi.object({
   maxParticipants: Joi.number().min(4).max(50).optional().default(20),
   startDate: Joi.date().min("now").optional(),
   endDate: Joi.date().greater(Joi.ref("startDate")).optional(),
+  type: Joi.string().valid("league", "cup", "hybrid").required(),
   registrationDeadline: Joi.date()
     .min("now")
     .max(Joi.ref("startDate"))

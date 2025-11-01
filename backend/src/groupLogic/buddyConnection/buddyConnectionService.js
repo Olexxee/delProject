@@ -3,7 +3,7 @@ import * as errorService from "../../lib/classes/errorClasses.js";
 import * as chatRoomService from "../../models/chatSchemaService.js";
 import * as userDb from "../../user/userService.js";
 import * as notificationService from "../../models/notificationSchemaService.js";
-import { NotificationTypes } from "../../logic/notifications/notificationTypes.js";
+import { NotificationTypes } from "../notifications/notificationTypes.js";
 
 // Send buddy request
 export const sendBuddyRequest = async (
@@ -48,7 +48,7 @@ export const sendBuddyRequest = async (
   });
 
   // Send notification to recipient
-  await notificationService.create({
+  await notificationService.createNotification({
     recipient: recipientId,
     sender: requesterId,
     type: NotificationTypes.CONNECTION_REQUEST,
@@ -76,12 +76,12 @@ export const acceptConnection = async (connectionId, userId) => {
   connection.matchedAt = new Date();
   await connection.save();
 
-  let chatRoom = await chatRoomService.findChatByContext(
+  let chatRoom = await chatRoomService.findChatRoom(
     "Buddy",
     connection._id
   );
   if (!chatRoom) {
-    chatRoom = await chatRoomService.createChatRoom({
+    chatRoom = await chatRoomService.createPeerChatRoom({
       participants: [connection.requester, connection.recipient],
       contextType: "Buddy",
       contextId: connection._id,
@@ -89,7 +89,7 @@ export const acceptConnection = async (connectionId, userId) => {
   }
 
   // Notify the requester
-  await notificationService.create({
+  await notificationService.createNotification({
     recipient: connection.requester,
     sender: userId,
     type: NotificationTypes.CONNECTION_ACCEPTED,
@@ -154,15 +154,15 @@ export const unblockBuddyUser = async (userId, targetUserId) => {
 
   await userDb.removeBlockedUser(userId, targetUserId);
 
-  // Optional: notify the user
-  await notificationService.create({
-    recipient: targetUserId,
-    sender: userId,
-    type: NotificationTypes.USER_UNBLOCKED,
-    title: "You have been unblocked",
-    message: "This user has unblocked you",
-    meta: { unblockerId: userId },
-  });
+  // // Optional: notify the user
+  // await notificationService.create({
+  //   recipient: targetUserId,
+  //   sender: userId,
+  //   type: NotificationTypes.USER_UNBLOCKED,
+  //   title: "You have been unblocked",
+  //   message: "This user has unblocked you",
+  //   meta: { unblockerId: userId },
+  // });
 
   return { message: "User has been unblocked" };
 };
@@ -180,15 +180,15 @@ export const removeConnection = async (userId, targetUserId) => {
     return { success: false, message: "No connection found to delete" };
   }
 
-  // Notify the other user
-  await notificationService.create({
-    recipient: targetUserId,
-    sender: userId,
-    type: NotificationTypes.CONNECTION_REMOVED,
-    title: "Buddy Connection Removed",
-    message: "This user has removed you from their buddy list",
-    meta: { connectionId: deleted._id },
-  });
+  // // Notify the other user
+  // await notificationService.create({
+  //   recipient: targetUserId,
+  //   sender: userId,
+  //   type: NotificationTypes.CONNECTION_REMOVED,
+  //   title: "Buddy Connection Removed",
+  //   message: "This user has removed you from their buddy list",
+  //   meta: { connectionId: deleted._id },
+  // });
 
   return {
     success: true,

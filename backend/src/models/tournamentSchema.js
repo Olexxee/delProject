@@ -23,6 +23,9 @@ const tournamentSchema = new mongoose.Schema(
       enum: ["league", "cup", "hybrid"],
       default: "league",
     },
+    roundsGenerated: { type: Boolean, default: false },
+    currentRound: { type: Number, default: 1 },
+    groupStage: { type: Boolean, default: false }, // for hybrid
     description: {
       type: String,
       default: "",

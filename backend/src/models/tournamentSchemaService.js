@@ -136,3 +136,9 @@ export const checkTournamentCapacity = async (tournamentId) => {
   };
 };
 
+export const emitTournamentUpdate = (tournamentId, data) => {
+  if (!io) return;
+  io.to(`tournament_${tournamentId}`).emit("tournament_update", data);
+};
+
+

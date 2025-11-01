@@ -1,4 +1,3 @@
-import logger from "../../lib/logger.js";
 import { asyncWrapper } from "../../lib/utils.js";
 import { ValidationException } from "../../lib/classes/errorClasses.js";
 import { validator } from "../../lib/classes/validatorClass.js";
@@ -21,13 +20,18 @@ export const sendBuddyRequest = asyncWrapper(async (req, res) => {
   res.status(200).json({ success: true, data: result });
 });
 
-
 // Accept connection
 export const acceptConnection = asyncWrapper(async (req, res) => {
-  const { error, value } = validator.validate(acceptConnectionSchema, req.params);
+  const { error, value } = validator.validate(
+    acceptConnectionSchema,
+    req.params
+  );
   if (error) throw new ValidationException(error);
 
-  const result = await buddyService.acceptConnection(value.connectionId, req.user.id);
+  const result = await buddyService.acceptConnection(
+    value.connectionId,
+    req.user.id
+  );
   res.status(200).json({ success: true, data: result });
 });
 
@@ -51,7 +55,10 @@ export const unblockBuddyUser = asyncWrapper(async (req, res) => {
 
 // Remove buddy connection
 export const removeBuddyConnection = asyncWrapper(async (req, res) => {
-  const { error, value } = validator.validate(removeBuddyConnectionSchema, req.params);
+  const { error, value } = validator.validate(
+    removeBuddyConnectionSchema,
+    req.params
+  );
   if (error) throw new ValidationException(error);
 
   const result = await buddyService.removeConnection(req.user.id, value.userId);
@@ -60,19 +67,32 @@ export const removeBuddyConnection = asyncWrapper(async (req, res) => {
 
 // List buddy connections
 export const listBuddyConnections = asyncWrapper(async (req, res) => {
-  const { error, value } = validator.validate(listBuddyConnectionsSchema, req.query);
+  const { error, value } = validator.validate(
+    listBuddyConnectionsSchema,
+    req.query
+  );
   if (error) throw new ValidationException(error);
 
-  const result = await buddyService.listBuddyConnections(req.user._id, "accepted", value);
+  const result = await buddyService.listBuddyConnections(
+    req.user._id,
+    "accepted",
+    value
+  );
   res.status(200).json({ success: true, data: result });
 });
 
 // Get connection details
 export const getConnectionDetailsController = asyncWrapper(async (req, res) => {
-  const { error, value } = validator.validate(getConnectionDetailsSchema, req.params);
+  const { error, value } = validator.validate(
+    getConnectionDetailsSchema,
+    req.params
+  );
   if (error) throw new ValidationException(error);
 
-  const connection = await buddyService.getConnectionDetails(value.requesterId, value.recipientId);
+  const connection = await buddyService.getConnectionDetails(
+    value.requesterId,
+    value.recipientId
+  );
 
   res.status(200).json({
     success: true,

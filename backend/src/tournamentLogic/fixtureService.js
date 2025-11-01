@@ -5,183 +5,264 @@ import {
   NotFoundException,
   BadRequestError,
   ConflictException,
-  ForbiddenError,
 } from "../lib/classes/errorClasses.js";
 
-// Generate fixtures for tournament
-export const generateTournamentFixtures = async ({ tournamentId, userId }) => {
-  // Get tournament details
-  const tournament = await tournamentDb.findTournamentById(tournamentId);
-  if (!tournament) {
-    throw new NotFoundException("Tournament not found");
-  }
+import { generateLeagueFixtures } from "./generators/league.js";
+import { generateCupFixtures } from "./generators/cupGenerator.js";
+import { generateHybridFixtures } from "./generators/hybridGenerator.js";
+import * as tableService from "./tableService.js"; // used for league/hybrid table updates
 
-  // Check if user is group admin
+// -----------------------------
+// MAIN — Generate Fixtures for Any Tournament Type
+// -----------------------------
+export const generateTournamentFixtures = async ({ tournamentId, userId }) => {
+  const tournament = await tournamentDb.findTournamentById(tournamentId);
+  if (!tournament) throw new NotFoundException("Tournament not found");
+
+  // Verify admin rights
   await membershipService.assertIsAdmin({
     userId,
     groupId: tournament.groupId._id || tournament.groupId,
   });
 
-  // Check if tournament has enough participants
-  if (tournament.currentParticipants < 4) {
-    throw new BadRequestError(
-      "Tournament needs at least 4 participants to generate fixtures"
-    );
-  }
+  // Ensure enough participants
+  if (tournament.currentParticipants < 4)
+    throw new BadRequestError("Tournament needs at least 4 participants");
 
-  // Check if fixtures already exist
-  const existingFixtures = await fixtureDb.fixturesExist(tournamentId);
-  if (existingFixtures) {
-    throw new ConflictException(
-      "Fixtures have already been generated for this tournament"
-    );
-  }
+  // Prevent duplicate fixtures
+  const existing = await fixtureDb.fixturesExist(tournamentId);
+  if (existing) throw new ConflictException("Fixtures already exist");
 
-  // Check tournament status
-  if (tournament.status !== "registration") {
-    throw new BadRequestError(
-      "Can only generate fixtures for tournaments in registration phase"
-    );
-  }
+  // Check phase
+  if (tournament.status !== "registration")
+    throw new BadRequestError("Can only generate fixtures during registration");
 
-  // Get active participants
-  const activeParticipants = tournament.participants
+  // Get participants
+  const participants = tournament.participants
     .filter((p) => p.status === "registered")
     .map((p) => p.userId._id || p.userId);
 
-  if (activeParticipants.length < 4) {
-    throw new BadRequestError(
-      "Not enough active participants to generate fixtures"
-    );
+  if (participants.length < 4)
+    throw new BadRequestError("Not enough participants to generate fixtures");
+
+  // Dispatch by tournament.type (use generators)
+  let fixtures = [];
+  switch (tournament.type) {
+    case "league":
+      fixtures = await generateLeagueFixtures(tournament, participants);
+      break;
+    case "cup":
+      fixtures = await generateCupFixtures(tournament, participants);
+      break;
+    case "hybrid":
+      fixtures = await generateHybridFixtures(tournament, participants);
+      break;
+    default:
+      throw new BadRequestError("Invalid tournament type");
   }
 
-  // Generate fixtures based on tournament type
-  let fixtures;
-  if (tournament.settings.rounds === "double") {
-    fixtures = generateDoubleRoundRobinFixtures(
-      activeParticipants,
-      tournamentId
-    );
-  } else {
-    fixtures = generateSingleRoundRobinFixtures(
-      activeParticipants,
-      tournamentId
-    );
-  }
-
-  // Save fixtures to database
+  // Save fixtures
   const createdFixtures = await fixtureDb.createFixtures(fixtures);
 
-  // Update tournament status and matchday info
+  // Update tournament
   await tournamentDb.updateTournament(tournamentId, {
     status: "upcoming",
-    totalMatchdays: Math.max(...fixtures.map((f) => f.matchday)),
+    totalMatchdays: Math.max(...fixtures.map((f) => f.matchday || 1)),
     currentMatchday: 1,
   });
 
   return {
     message: "Fixtures generated successfully",
-    fixturesCount: createdFixtures.length,
-    totalMatchdays: Math.max(...fixtures.map((f) => f.matchday)),
+    count: createdFixtures.length,
+    type: tournament.type,
     fixtures: createdFixtures,
   };
 };
 
-// Single Round-Robin Algorithm
-const generateSingleRoundRobinFixtures = (participants, tournamentId) => {
-  const fixtures = [];
-  const n = participants.length;
-  let matchday = 1;
+// -----------------------------
+// HANDLE PROGRESSION: Called when a fixture is completed
+// - This function should be called right after you mark a fixture as completed
+//   (e.g., in your match save hook or in the controller after updating fixture).
+// -----------------------------
+export const handleFixtureCompletion = async (fixtureId) => {
+  const fixture = await fixtureDb.findFixtureById(fixtureId);
+  if (!fixture) throw new NotFoundException("Fixture not found");
 
-  // Handle even number of participants
-  if (n % 2 === 0) {
-    for (let round = 0; round < n - 1; round++) {
-      const roundFixtures = [];
+  if (!fixture.isCompleted) {
+    // nothing to do
+    return { message: "Fixture not completed — no progression performed" };
+  }
 
-      for (let match = 0; match < n / 2; match++) {
-        const home = (round + match) % (n - 1);
-        const away = (n - 1 - match + round) % (n - 1);
+  const tournament = await tournamentDb.findTournamentById(fixture.tournamentId);
+  if (!tournament) throw new NotFoundException("Tournament not found");
 
-        // Last team stays fixed
-        const homeTeam =
-          home === n - 1 ? participants[n - 1] : participants[home];
-        const awayTeam =
-          away === n - 1 ? participants[n - 1] : participants[away];
+  // Branch by tournament type
+  switch (tournament.type) {
+    case "league":
+      // update league table/stats
+      await tableService.updateLeagueTableFromFixture(fixture);
+      // optional: emit socket update from controller where this is called
+      break;
 
-        if (homeTeam !== awayTeam) {
-          roundFixtures.push({
-            tournamentId,
-            matchday,
-            homeTeam,
-            awayTeam,
-          });
-        }
-      }
+    case "cup":
+      await _handleCupProgression(fixture, tournament);
+      break;
 
-      fixtures.push(...roundFixtures);
-      matchday++;
-    }
-  } else {
-    // Handle odd number - add dummy team
-    const extendedParticipants = [...participants, null];
-    const extendedN = extendedParticipants.length;
+    case "hybrid":
+      await _handleHybridProgression(fixture, tournament);
+      break;
 
-    for (let round = 0; round < extendedN - 1; round++) {
-      const roundFixtures = [];
+    default:
+      break;
+  }
 
-      for (let match = 0; match < extendedN / 2; match++) {
-        const home = (round + match) % (extendedN - 1);
-        const away = (extendedN - 1 - match + round) % (extendedN - 1);
+  return { message: "Progression handled", tournamentId: fixture.tournamentId };
+};
 
-        const homeTeam =
-          home === extendedN - 1
-            ? extendedParticipants[extendedN - 1]
-            : extendedParticipants[home];
-        const awayTeam =
-          away === extendedN - 1
-            ? extendedParticipants[extendedN - 1]
-            : extendedParticipants[away];
+// -----------------------------
+// CUP progression helpers
+// - When an entire round is completed, collect winners and generate next round fixtures.
+// - If only one winner remains, finalize tournament.
+// -----------------------------
+const _handleCupProgression = async (fixture, tournament) => {
+  // Determine winner for this fixture (expect result or homeGoals/awayGoals)
+  const winner =
+    fixture.result?.winner ||
+    (fixture.homeGoals > fixture.awayGoals ? fixture.homeTeam : fixture.awayTeam);
 
-        // Skip matches involving null (bye)
-        if (homeTeam && awayTeam && homeTeam !== awayTeam) {
-          roundFixtures.push({
-            tournamentId,
-            matchday,
-            homeTeam,
-            awayTeam,
-          });
-        }
-      }
+  // Update this fixture's result winner field if not already set
+  if (!fixture.result || !fixture.result.winner) {
+    await fixtureDb.updateFixtureResult(fixture._id, {
+      ...fixture.toObject().result,
+      winner,
+    });
+  }
 
-      fixtures.push(...roundFixtures);
-      matchday++;
+  // Check all fixtures in the same round
+  const allFixtures = await fixtureDb.getTournamentFixtures(tournament._id);
+  const roundValue = fixture.round;
+  const roundFixtures = allFixtures.filter((f) => f.round === roundValue);
+
+  const isRoundCompleted = roundFixtures.length > 0 && roundFixtures.every((f) => f.isCompleted);
+
+  if (!isRoundCompleted) return; // wait for remaining matches
+
+  // Collect winners
+  const winners = roundFixtures.map((f) => {
+    if (f.result?.winner) return f.result.winner;
+    return f.homeGoals > f.awayGoals ? f.homeTeam : f.awayTeam;
+  });
+
+  // If only one winner -> tournament finished
+  const activeWinners = winners.filter(Boolean);
+  if (activeWinners.length === 1) {
+    await tournamentDb.updateTournament(tournament._id, {
+      status: "completed",
+      winner: activeWinners[0],
+      completedAt: new Date(),
+    });
+    return;
+  }
+
+  // Build next round fixtures pairing winners
+  const nextRound = _nextRoundLabel(roundValue, activeWinners.length);
+  const newFixtures = [];
+  for (let i = 0; i < activeWinners.length; i += 2) {
+    if (activeWinners[i + 1]) {
+      newFixtures.push({
+        tournamentId: tournament._id,
+        round: nextRound,
+        matchday: tournament.currentMatchday + 1,
+        homeTeam: activeWinners[i],
+        awayTeam: activeWinners[i + 1],
+        type: "cup",
+      });
+    } else {
+      // bye - auto-advance
+      newFixtures.push({
+        tournamentId: tournament._id,
+        round: nextRound,
+        matchday: tournament.currentMatchday + 1,
+        homeTeam: activeWinners[i],
+        bye: true,
+        isCompleted: true,
+        result: { winner: activeWinners[i] },
+        type: "cup",
+      });
     }
   }
 
-  return fixtures;
+  // Save next round fixtures
+  await fixtureDb.createFixtures(newFixtures);
+
+  // bump matchday
+  await tournamentDb.updateTournament(tournament._id, {
+    currentMatchday: (tournament.currentMatchday || 1) + 1,
+    totalMatchdays: Math.max(tournament.totalMatchdays || 0, tournament.currentMatchday + 1),
+  });
 };
 
-// Double Round-Robin Algorithm
-const generateDoubleRoundRobinFixtures = (participants, tournamentId) => {
-  // Generate first round-robin
-  const firstRound = generateSingleRoundRobinFixtures(
-    participants,
-    tournamentId
-  );
+// Helper to create next round label (simple approach)
+const _nextRoundLabel = (currentRoundLabel, numTeamsRemaining) => {
+  // if numeric round (e.g., 1) we just return current+1
+  if (typeof currentRoundLabel === "number") return currentRoundLabel + 1;
 
-  // Generate second round-robin (reverse home/away)
-  const maxMatchday = Math.max(...firstRound.map((f) => f.matchday));
-  const secondRound = firstRound.map((fixture) => ({
-    ...fixture,
-    matchday: fixture.matchday + maxMatchday,
-    homeTeam: fixture.awayTeam, // Swap home and away
-    awayTeam: fixture.homeTeam,
-  }));
-
-  return [...firstRound, ...secondRound];
+  // If string like "Round of 16" -> build next ("Quarterfinal", "Semifinal", "Final")
+  // Fallback logic:
+  const match = /Round of (\d+)/i.exec(currentRoundLabel + "");
+  if (match) {
+    const next = Math.ceil(parseInt(match[1], 10) / 2);
+    return `Round of ${next}`;
+  }
+  // Fallback numeric increment
+  return `${currentRoundLabel}_next`;
 };
 
-// Get tournament fixtures with details
+// -----------------------------
+// HYBRID progression helpers
+// - Hybrid = group (league) stage followed by knockout.
+// - After group fixtures complete, pick top N per group and generate cup fixtures.
+// -----------------------------
+const _handleHybridProgression = async (fixture, tournament) => {
+  // 1) update group/league stats for this fixture
+  await tableService.updateLeagueTableFromFixture(fixture);
+
+  // 2) Check if all group-stage fixtures are completed
+  const allFixtures = await fixtureDb.getTournamentFixtures(tournament._id);
+
+  // If your hybrid generator tags group fixtures with `type: "group"` or `group: "Group X"`,
+  // filter accordingly. We'll assume group fixtures have `type === "group"`
+  const groupFixtures = allFixtures.filter((f) => f.type === "group");
+  const isGroupStageComplete = groupFixtures.length > 0 && groupFixtures.every((f) => f.isCompleted);
+
+  if (!isGroupStageComplete) return; // still in group stage
+
+  // 3) Only run knockout generation once
+  if (tournament.knockoutStarted) return;
+
+  // 4) Determine qualified teams (using tableService)
+  const table = await tableService.generateLeagueTable(tournament._id);
+  // pick top half (or apply group-specific logic if groups exist)
+  const qualified = table
+    .slice(0, Math.ceil(table.length / 2))
+    .map((row) => row.userId || row.teamId || row.user); // adapt to your table shape
+
+  // 5) Generate cup fixtures for qualified teams
+  const nextFixtures = await generateCupFixtures(tournament, qualified);
+
+  // Save new fixtures
+  await fixtureDb.createFixtures(nextFixtures);
+
+  // Mark tournament as having started knockout
+  await tournamentDb.updateTournament(tournament._id, {
+    knockoutStarted: true,
+    currentMatchday: (tournament.currentMatchday || 1) + 1,
+  });
+};
+
+// -----------------------------
+// Existing helpers: getters, regenerate, start, etc.
+// -----------------------------
 export const getTournamentFixtures = async (tournamentId) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) {
@@ -202,7 +283,6 @@ export const getTournamentFixtures = async (tournamentId) => {
   };
 };
 
-// Get fixtures for specific matchday
 export const getMatchdayFixtures = async ({ tournamentId, matchday }) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) {
@@ -220,7 +300,6 @@ export const getMatchdayFixtures = async ({ tournamentId, matchday }) => {
   };
 };
 
-// Get team's fixtures
 export const getTeamFixtures = async ({ tournamentId, teamId }) => {
   const fixtures = await fixtureDb.getTeamFixtures(tournamentId, teamId);
 
@@ -237,7 +316,6 @@ export const getTeamFixtures = async ({ tournamentId, teamId }) => {
   };
 };
 
-// Regenerate fixtures (admin only)
 export const regenerateFixtures = async ({ tournamentId, userId }) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) {
@@ -265,13 +343,13 @@ export const regenerateFixtures = async ({ tournamentId, userId }) => {
     status: "registration",
     currentMatchday: 0,
     totalMatchdays: 0,
+    knockoutStarted: false,
   });
 
   // Generate new fixtures
   return await generateTournamentFixtures({ tournamentId, userId });
 };
 
-// Start tournament (moves from upcoming to ongoing)
 export const startTournament = async ({ tournamentId, userId }) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) {
