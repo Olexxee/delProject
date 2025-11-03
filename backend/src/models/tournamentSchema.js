@@ -26,6 +26,7 @@ const tournamentSchema = new mongoose.Schema(
     roundsGenerated: { type: Boolean, default: false },
     currentRound: { type: Number, default: 1 },
     groupStage: { type: Boolean, default: false }, // for hybrid
+    stage: { type: String, enum: ["group", "knockout"], default: "group" },
     description: {
       type: String,
       default: "",

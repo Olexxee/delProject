@@ -3,27 +3,53 @@ import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as userStatsService from "../user/statschemaService.js";
 import { NotFoundException } from "../lib/classes/errorClasses.js";
 
-// Generate complete league table
-export const generateLeagueTable = async (tournamentId) => {
+/**
+ * Generate tournament standings based on tournament type
+ */
+export const generateTournamentTable = async (tournamentId) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
-  if (!tournament) {
-    throw new NotFoundException("Tournament not found");
+  if (!tournament) throw new NotFoundException("Tournament not found");
+
+  if (["league", "hybrid"].includes(tournament.type)) {
+    return await generateLeagueTable(tournament);
   }
 
-  // Get all participants
+  return {
+    tournament: {
+      id: tournament._id,
+      name: tournament.name,
+      type: tournament.type,
+      status: tournament.status,
+    },
+    table: [],
+    message: "No table available for cup tournaments (knockout format).",
+  };
+};
+
+/**
+ * Build league or hybrid group standings table
+ */
+export const generateLeagueTable = async (tournament) => {
+  const tournamentId = tournament._id;
+
+  // Collect active participants
   const participants = tournament.participants
     .filter((p) => p.status === "registered")
     .map((p) => p.userId._id || p.userId);
 
-  // Get all completed fixtures
-  const completedFixtures = await fixtureDb.getCompletedFixtures(tournamentId);
+  // Retrieve all completed fixtures
+  let completedFixtures = await fixtureDb.getCompletedFixtures(tournamentId);
 
-  // Initialize table data for each participant
+  // Filter for hybrid group stage
+  if (tournament.type === "hybrid") {
+    completedFixtures = completedFixtures.filter((f) => f.type === "group");
+  }
+
+  // Initialize table map
   const tableData = {};
-
-  participants.forEach((participantId) => {
-    tableData[participantId.toString()] = {
-      userId: participantId,
+  participants.forEach((id) => {
+    tableData[id.toString()] = {
+      userId: id,
       matchesPlayed: 0,
       wins: 0,
       draws: 0,
@@ -32,252 +58,190 @@ export const generateLeagueTable = async (tournamentId) => {
       goalsAgainst: 0,
       goalDifference: 0,
       points: 0,
-      form: [], // Last 5 results
+      form: [],
       position: 0,
+      group: null,
     };
   });
 
-  // Process each completed fixture
-  completedFixtures.forEach((fixture) => {
+  // Compute stats from fixtures
+  for (const fixture of completedFixtures) {
     const homeId = fixture.homeTeam._id.toString();
     const awayId = fixture.awayTeam._id.toString();
     const homeGoals = fixture.homeGoals || 0;
     const awayGoals = fixture.awayGoals || 0;
 
-    // Update matches played
-    tableData[homeId].matchesPlayed++;
-    tableData[awayId].matchesPlayed++;
+    const home = tableData[homeId];
+    const away = tableData[awayId];
+    if (!home || !away) continue;
 
-    // Update goals
-    tableData[homeId].goalsFor += homeGoals;
-    tableData[homeId].goalsAgainst += awayGoals;
-    tableData[awayId].goalsFor += awayGoals;
-    tableData[awayId].goalsAgainst += homeGoals;
+    home.matchesPlayed++;
+    away.matchesPlayed++;
 
-    // Update goal difference
-    tableData[homeId].goalDifference =
-      tableData[homeId].goalsFor - tableData[homeId].goalsAgainst;
-    tableData[awayId].goalDifference =
-      tableData[awayId].goalsFor - tableData[awayId].goalsAgainst;
+    home.goalsFor += homeGoals;
+    home.goalsAgainst += awayGoals;
+    away.goalsFor += awayGoals;
+    away.goalsAgainst += homeGoals;
 
-    // Determine result and update stats
+    home.goalDifference = home.goalsFor - home.goalsAgainst;
+    away.goalDifference = away.goalsFor - away.goalsAgainst;
+
     let homeResult, awayResult;
+
     if (homeGoals > awayGoals) {
-      // Home win
-      tableData[homeId].wins++;
-      tableData[awayId].losses++;
-      tableData[homeId].points += tournament.settings.pointsForWin;
-      tableData[awayId].points += tournament.settings.pointsForLoss;
+      home.wins++;
+      away.losses++;
+      home.points += tournament.settings.pointsForWin;
+      away.points += tournament.settings.pointsForLoss;
       homeResult = "W";
       awayResult = "L";
     } else if (homeGoals < awayGoals) {
-      // Away win
-      tableData[awayId].wins++;
-      tableData[homeId].losses++;
-      tableData[awayId].points += tournament.settings.pointsForWin;
-      tableData[homeId].points += tournament.settings.pointsForLoss;
+      away.wins++;
+      home.losses++;
+      away.points += tournament.settings.pointsForWin;
+      home.points += tournament.settings.pointsForLoss;
       homeResult = "L";
       awayResult = "W";
     } else {
-      // Draw
-      tableData[homeId].draws++;
-      tableData[awayId].draws++;
-      tableData[homeId].points += tournament.settings.pointsForDraw;
-      tableData[awayId].points += tournament.settings.pointsForDraw;
-      homeResult = "D";
-      awayResult = "D";
+      home.draws++;
+      away.draws++;
+      home.points += tournament.settings.pointsForDraw;
+      away.points += tournament.settings.pointsForDraw;
+      homeResult = awayResult = "D";
     }
 
-    // Update form (last 5 results)
-    tableData[homeId].form.push(homeResult);
-    tableData[awayId].form.push(awayResult);
+    home.form.push(homeResult);
+    away.form.push(awayResult);
+    if (home.form.length > 5) home.form = home.form.slice(-5);
+    if (away.form.length > 5) away.form = away.form.slice(-5);
 
-    // Keep only last 5 results
-    if (tableData[homeId].form.length > 5) {
-      tableData[homeId].form = tableData[homeId].form.slice(-5);
+    if (tournament.type === "hybrid" && fixture.group) {
+      home.group = fixture.group;
+      away.group = fixture.group;
     }
-    if (tableData[awayId].form.length > 5) {
-      tableData[awayId].form = tableData[awayId].form.slice(-5);
+  }
+
+  // Convert to array and sort
+  let tableArray = Object.values(tableData);
+
+  if (tournament.type === "hybrid") {
+    const grouped = {};
+    for (const row of tableArray) {
+      const groupName = row.group || "General";
+      if (!grouped[groupName]) grouped[groupName] = [];
+      grouped[groupName].push(row);
     }
-  });
 
-  // Convert to array and sort by league position
-  const tableArray = Object.values(tableData);
+    for (const groupName of Object.keys(grouped)) {
+      grouped[groupName].sort(sortLeagueRow);
+      grouped[groupName].forEach((team, i) => (team.position = i + 1));
+    }
 
-  // Sort by: Points (desc), Goal Difference (desc), Goals For (desc), Head-to-head (if needed)
-  tableArray.sort((a, b) => {
-    // Points first
-    if (b.points !== a.points) return b.points - a.points;
+    const populated = await Promise.all(
+      Object.entries(grouped).map(async ([groupName, rows]) => ({
+        group: groupName,
+        teams: await populateUsers(rows),
+      }))
+    );
 
-    // Goal difference second
-    if (b.goalDifference !== a.goalDifference)
-      return b.goalDifference - a.goalDifference;
+    return {
+      tournament: baseTournamentMeta(tournament),
+      groups: populated,
+      lastUpdated: new Date(),
+    };
+  }
 
-    // Goals for third
-    if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
-
-    // Head-to-head would go here (more complex)
-    return 0;
-  });
-
-  // Assign positions
-  tableArray.forEach((team, index) => {
-    team.position = index + 1;
-  });
-
-  // Populate user details
-  const populatedTable = await Promise.all(
-    tableArray.map(async (team) => {
-      const userDetails = await getUserDetails(team.userId);
-      return {
-        ...team,
-        user: userDetails,
-      };
-    })
-  );
+  // League mode
+  tableArray.sort(sortLeagueRow);
+  tableArray.forEach((team, i) => (team.position = i + 1));
 
   return {
-    tournament: {
-      id: tournament._id,
-      name: tournament.name,
-      status: tournament.status,
-      currentMatchday: tournament.currentMatchday,
-      totalMatchdays: tournament.totalMatchdays,
-    },
-    table: populatedTable,
+    tournament: baseTournamentMeta(tournament),
+    table: await populateUsers(tableArray),
     lastUpdated: new Date(),
   };
 };
 
-// Get user details helper
-const getUserDetails = async (userId) => {
-  const User = (await import("../user/userSchema.js")).default;
-  return await User.findById(userId).select("username email profilePicture");
-};
+/**
+ * Update tournament table dynamically after fixture completion
+ */
+export const updateLeagueTableFromFixture = async (fixture) => {
+  const tournamentId = fixture.tournamentId._id || fixture.tournamentId;
+  const tournament = await tournamentDb.findTournamentById(tournamentId);
+  if (!tournament) throw new NotFoundException("Tournament not found");
 
-// Get head-to-head record between two teams
-export const getHeadToHeadRecord = async (tournamentId, team1Id, team2Id) => {
-  const fixtures = await fixtureDb.getTournamentFixtures(tournamentId);
+  // Regenerate table
+  const updatedTable = await generateTournamentTable(tournamentId);
 
-  const h2hFixtures = fixtures
-    .filter(
-      (fixture) =>
-        (fixture.homeTeam._id.toString() === team1Id.toString() &&
-          fixture.awayTeam._id.toString() === team2Id.toString()) ||
-        (fixture.homeTeam._id.toString() === team2Id.toString() &&
-          fixture.awayTeam._id.toString() === team1Id.toString())
-    )
-    .filter((fixture) => fixture.isCompleted);
-
-  const record = {
-    played: h2hFixtures.length,
-    team1Wins: 0,
-    team2Wins: 0,
-    draws: 0,
-    team1Goals: 0,
-    team2Goals: 0,
-    fixtures: h2hFixtures,
-  };
-
-  h2hFixtures.forEach((fixture) => {
-    const isTeam1Home = fixture.homeTeam._id.toString() === team1Id.toString();
-    const homeGoals = fixture.homeGoals || 0;
-    const awayGoals = fixture.awayGoals || 0;
-
-    if (isTeam1Home) {
-      record.team1Goals += homeGoals;
-      record.team2Goals += awayGoals;
-
-      if (homeGoals > awayGoals) record.team1Wins++;
-      else if (homeGoals < awayGoals) record.team2Wins++;
-      else record.draws++;
-    } else {
-      record.team1Goals += awayGoals;
-      record.team2Goals += homeGoals;
-
-      if (awayGoals > homeGoals) record.team1Wins++;
-      else if (awayGoals < homeGoals) record.team2Wins++;
-      else record.draws++;
-    }
+  // Persist cached snapshot (optional)
+  await tournamentDb.updateTournament(tournamentId, {
+    lastTableUpdate: new Date(),
+    cachedTable: updatedTable,
   });
 
-  return record;
+  // Optionally sync player stats
+  await syncPlayerStatsFromFixture(fixture);
+
+  return updatedTable;
 };
 
-// Get league table for specific matchday (historical view)
-export const getHistoricalTable = async (tournamentId, upToMatchday) => {
-  const tournament = await tournamentDb.findTournamentById(tournamentId);
-  if (!tournament) {
-    throw new NotFoundException("Tournament not found");
-  }
+/**
+ * Sync user statistics from fixture result
+ */
+const syncPlayerStatsFromFixture = async (fixture) => {
+  const { homeTeam, awayTeam, homeGoals, awayGoals } = fixture;
+  const homeId = homeTeam._id || homeTeam;
+  const awayId = awayTeam._id || awayTeam;
 
-  // Get fixtures up to specific matchday
-  const fixtures = await fixtureDb.getTournamentFixtures(tournamentId);
-  const historicalFixtures = fixtures.filter(
-    (fixture) => fixture.matchday <= upToMatchday && fixture.isCompleted
+  const homeResult =
+    homeGoals > awayGoals ? "win" : homeGoals < awayGoals ? "loss" : "draw";
+  const awayResult =
+    awayGoals > homeGoals ? "win" : awayGoals < homeGoals ? "loss" : "draw";
+
+  await userStatsService.updateUserStatsAfterMatch(homeId, {
+    result: homeResult,
+    goalsFor: homeGoals,
+    goalsAgainst: awayGoals,
+  });
+
+  await userStatsService.updateUserStatsAfterMatch(awayId, {
+    result: awayResult,
+    goalsFor: awayGoals,
+    goalsAgainst: homeGoals,
+  });
+};
+
+/**
+ * Helpers
+ */
+const sortLeagueRow = (a, b) => {
+  if (b.points !== a.points) return b.points - a.points;
+  if (b.goalDifference !== a.goalDifference)
+    return b.goalDifference - a.goalDifference;
+  if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+  return 0;
+};
+
+const baseTournamentMeta = (tournament) => ({
+  id: tournament._id,
+  name: tournament.name,
+  type: tournament.type,
+  status: tournament.status,
+  currentMatchday: tournament.currentMatchday,
+  totalMatchdays: tournament.totalMatchdays,
+});
+
+const populateUsers = async (rows) => {
+  return await Promise.all(
+    rows.map(async (team) => {
+      const userDetails = await getUserDetails(team.userId);
+      return { ...team, user: userDetails };
+    })
   );
-
-  // Use similar logic as generateLeagueTable but with filtered fixtures
-  // Implementation similar to above but with historicalFixtures
-
-  return {
-    tournament: {
-      id: tournament._id,
-      name: tournament.name,
-      matchday: upToMatchday,
-    },
-    table: [], // Would contain calculated table for that matchday
-    asOfMatchday: upToMatchday,
-  };
 };
 
-// Get mini league table (top/bottom teams)
-export const getMiniTable = async (tournamentId, options = {}) => {
-  const { top = 5, bottom = 3 } = options;
-
-  const fullTable = await generateLeagueTable(tournamentId);
-
-  return {
-    ...fullTable,
-    table: {
-      top: fullTable.table.slice(0, top),
-      bottom: fullTable.table.slice(-bottom),
-    },
-  };
-};
-
-// Get team's position and nearby teams
-export const getTeamPosition = async (tournamentId, teamId) => {
-  const fullTable = await generateLeagueTable(tournamentId);
-
-  const teamIndex = fullTable.table.findIndex(
-    (team) => team.userId.toString() === teamId.toString()
-  );
-
-  if (teamIndex === -1) {
-    throw new NotFoundException("Team not found in tournament");
-  }
-
-  const team = fullTable.table[teamIndex];
-
-  // Get teams above and below
-  const context = {
-    above:
-      teamIndex > 0
-        ? fullTable.table.slice(Math.max(0, teamIndex - 2), teamIndex)
-        : [],
-    team: team,
-    below:
-      teamIndex < fullTable.table.length - 1
-        ? fullTable.table.slice(
-            teamIndex + 1,
-            Math.min(fullTable.table.length, teamIndex + 3)
-          )
-        : [],
-  };
-
-  return {
-    tournament: fullTable.tournament,
-    position: context,
-  };
-};
+// Stub: replace with actual user retrieval
+const getUserDetails = async (userId) => ({
+  id: userId,
+  username: `User_${userId.toString().slice(-4)}`,
+});

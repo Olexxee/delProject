@@ -1,53 +1,39 @@
-import * as matchService from "../services/matchService.js";
+import * as matchLogic from "../logic/matchLogic.js";
 import { asyncWrapper } from "../lib/utils.js";
+import { matchResultSchema } from "./matchRequest.js";
 import {
-  NotFoundException,
   BadRequestError,
-  ForbiddenError,
+  NotFoundException,
 } from "../lib/classes/errorClasses.js";
 
-// Create a match (admin)
 export const createMatch = asyncWrapper(async (req, res) => {
-  const userId = req.user._id; // adjust per your auth middleware
-  const { tournamentId, matchData } = req.body;
-
-  const created = await matchService.createMatch({
+  const { tournamentId } = req.params;
+  const userId = req.user._id;
+  const matchData = req.body;
+  const created = await matchLogic.createMatch({
     tournamentId,
     userId,
     matchData,
   });
-  res.status(201).json({ message: "Match created", match: created });
+  res.status(201).json({ success: true, data: created });
 });
 
-// Submit or update match result (admin)
-export const submitResult = asyncWrapper(async (req, res) => {
+export const submitMatchResult = asyncWrapper(async (req, res) => {
+  const { error, value } = matchResultSchema.validate(resultPayload);
+  if (error) throw new BadRequestError(error.details[0].message);
+  const { matchId } = req.params;
   const userId = req.user._id;
-  const matchId = req.params.id;
-  const resultPayload = req.body; // see shape expected in service
-
-  const updated = await matchService.submitMatchResult({
+  const payload = req.body;
+  const updated = await matchLogic.submitMatchResult({
     matchId,
     userId,
-    resultPayload,
+    resultPayload: payload,
   });
-  res.status(200).json({ message: "Match result submitted", match: updated });
+  res.json({ success: true, data: updated });
 });
 
-// Get tournament matches
-export const getMatchesForTournament = asyncWrapper(async (req, res) => {
+export const getTournamentMatches = asyncWrapper(async (req, res) => {
   const { tournamentId } = req.params;
-  const matches = await matchService.getTournamentMatches(tournamentId);
-  res.status(200).json({ matches });
-});
-
-// Get single match
-export const getMatchById = asyncWrapper(async (req, res) => {
-  const matchId = req.params.id;
-  const match =
-    (await matchService.getMatchById?.(matchId)) ||
-    (await import("../models/matchSchemaService.js")).then((m) =>
-      m.findMatchById(matchId)
-    );
-  if (!match) throw new NotFoundException("Match not found");
-  res.status(200).json({ match });
+  const matches = await matchLogic.getTournamentMatches(tournamentId);
+  res.json({ success: true, data: matches });
 });

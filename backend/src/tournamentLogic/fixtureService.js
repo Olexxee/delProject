@@ -1,6 +1,7 @@
 import * as fixtureDb from "../models/fixtureSchemaService.js";
 import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as membershipService from "../groupLogic/membershipService.js";
+import * as progressionService from "./generators/progression.js";
 import {
   NotFoundException,
   BadRequestError,
@@ -10,7 +11,7 @@ import {
 import { generateLeagueFixtures } from "./generators/league.js";
 import { generateCupFixtures } from "./generators/cupGenerator.js";
 import { generateHybridFixtures } from "./generators/hybridGenerator.js";
-import * as tableService from "./tableService.js"; // used for league/hybrid table updates
+import * as tableService from "./leagueTableService.js"; 
 
 // -----------------------------
 // MAIN — Generate Fixtures for Any Tournament Type
@@ -105,11 +106,11 @@ export const handleFixtureCompletion = async (fixtureId) => {
       break;
 
     case "cup":
-      await _handleCupProgression(fixture, tournament);
+      await progressionService.handleCupProgression(fixture, tournament);
       break;
 
     case "hybrid":
-      await _handleHybridProgression(fixture, tournament);
+      await progressionService.handleHybridProgression(fixture, tournament);
       break;
 
     default:

@@ -1,107 +1,95 @@
-import * as matchDb from "../models/matchSchemaService.js";
+import * as matchService from "../services/matchService.js";
+import * as fixtureService from "../services/fixtureService.js";
 import * as fixtureDb from "../models/fixtureSchemaService.js";
 import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as membershipService from "../groupLogic/membershipService.js";
 import * as userStatsService from "../user/statschemaService.js";
 import {
-  NotFoundException,
   BadRequestError,
-  ForbiddenError,
+  NotFoundException,
 } from "../lib/classes/errorClasses.js";
-import { emitTournamentUpdate } from "../socket/chatSocket.js";
+import { notifyAndEmit } from "../lib/notifiers/tournamentNotifier.js";
+
+
 
 /**
- * Create a match record (admin only).
- * If you want to create a match tied to an existing fixture, pass fixtureId and matchday/home/away.
- */
-export const createMatch = async ({ tournamentId, userId, matchData }) => {
-  const tournament = await tournamentDb.findTournamentById(tournamentId);
-  if (!tournament) throw new NotFoundException("Tournament not found");
-
-  // Only group admin can create/directly schedule matches
-  await membershipService.assertIsAdmin({
-    userId,
-    groupId: tournament.groupId._id || tournament.groupId,
-  });
-
-  // Basic validation: ensure both participants are in tournament
-  const participantIds = tournament.participants.map((p) =>
-    p.userId._id ? p.userId._id.toString() : p.userId.toString()
-  );
-
-  const { homeTeam, awayTeam } = matchData;
-  if (!participantIds.includes(homeTeam.toString()) || !participantIds.includes(awayTeam.toString())) {
-    throw new BadRequestError("Both teams must be registered in tournament");
-  }
-
-  const created = await matchDb.createMatch({
-    tournamentId,
-    ...matchData,
-  });
-
-  // Emit live: new match created
-  emitTournamentUpdate(tournamentId, {
-    type: "match_created",
-    match: created,
-  });
-
-  return created;
-};
-
-/**
- * Submit or update match result (admin only). This will:
- * - Update Match doc (scores, participants' isWinner/score/goals)
- * - Mark match as closed/complete (isClosed)
- * - (matchSchema post-save hook will sync fixture and call updateParticipantStats)
- * - Emit tournament update
+ * Submit match result (admin only)
  */
 export const submitMatchResult = async ({ matchId, userId, resultPayload }) => {
-  const match = await matchDb.findMatchById(matchId);
+  // ✅ Validate input
+  const { value, error } = matchResultSchema.validate(resultPayload);
+  if (error) throw new BadRequestError(error.details[0].message);
+
+  // ✅ Get match + tournament
+  const match = await matchService.findMatchById(matchId);
   if (!match) throw new NotFoundException("Match not found");
 
-  const tournament = await tournamentDb.findTournamentById(match.tournamentId._id || match.tournamentId);
+  const tournament = await tournamentDb.findTournamentById(
+    match.tournamentId._id || match.tournamentId
+  );
   if (!tournament) throw new NotFoundException("Tournament not found");
 
-  // Admin check
+  // ✅ Admin check
   await membershipService.assertIsAdmin({
     userId,
     groupId: tournament.groupId._id || tournament.groupId,
   });
 
-  // Prevent editing result if tournament is completed or cancelled
-  if (tournament.status === "completed" || tournament.status === "cancelled") {
-    throw new BadRequestError("Cannot submit results for finished/cancelled tournament");
-  }
+  const { homeGoals, awayGoals } = value;
 
-  // Build participants array update (normalize incoming format)
-  // resultPayload expected shape:
-  // { participants: [{ userId, score, goals, kills, isWinner }], homeGoals, awayGoals, isClosed=true }
+  // ✅ Map participants & auto-determine winners
+  const participants = (value.participants || []).map((p) => {
+    const userIdStr = p.userId.toString();
+    const homeTeamId = match.homeTeam._id
+      ? match.homeTeam._id.toString()
+      : match.homeTeam.toString();
+    const awayTeamId = match.awayTeam._id
+      ? match.awayTeam._id.toString()
+      : match.awayTeam.toString();
+
+    let isWinner = p.isWinner;
+    if (typeof isWinner === "undefined") {
+      if (homeGoals > awayGoals && userIdStr === homeTeamId) isWinner = true;
+      else if (awayGoals > homeGoals && userIdStr === awayTeamId)
+        isWinner = true;
+      else isWinner = false;
+    }
+
+    return {
+      userId: p.userId,
+      score: p.score || 0,
+      goals:
+        typeof p.goals !== "undefined"
+          ? p.goals
+          : userIdStr === homeTeamId
+          ? homeGoals
+          : userIdStr === awayTeamId
+          ? awayGoals
+          : 0,
+      kills: p.kills || 0,
+      isWinner,
+    };
+  });
+
+  // ✅ Build match update object
   const update = {
-    participants: resultPayload.participants || match.participants,
-    homeGoals: typeof resultPayload.homeGoals !== "undefined" ? resultPayload.homeGoals : match.homeGoals,
-    awayGoals: typeof resultPayload.awayGoals !== "undefined" ? resultPayload.awayGoals : match.awayGoals,
-    homeTeam: match.homeTeam,
-    awayTeam: match.awayTeam,
-    matchday: match.matchday,
+    participants,
+    homeGoals,
+    awayGoals,
+    isClosed: value.isClosed,
+    closedAt: value.isClosed ? new Date() : null,
   };
 
-  if (resultPayload.isClosed) {
-    update.isClosed = true;
-    update.closedAt = new Date();
-  }
+  // ✅ Update match record
+  const updatedMatch = await matchService.updateMatch(matchId, update);
 
-  // Update the match doc
-  const updatedMatch = await matchDb.updateMatch(matchId, update);
-
-  // Immediately update the fixture too (so frontends reading fixtures see it instantly).
+  // ✅ Sync with fixture
   try {
-    const fixture = await fixtureDb.getTournamentFixtures(match.tournamentId)
-      .then(fixtures => fixtures.find(f => 
-        (f.homeTeam._id.toString() === (match.homeTeam._id || match.homeTeam).toString() &&
-         f.awayTeam._id.toString() === (match.awayTeam._id || match.awayTeam).toString()) ||
-        (f.homeTeam._id.toString() === (match.awayTeam._id || match.awayTeam).toString() &&
-         f.awayTeam._id.toString() === (match.homeTeam._id || match.homeTeam).toString())
-      ));
+    const fixture = await fixtureDb.findByTeamsAndTournament(
+      match.homeTeam._id || match.homeTeam,
+      match.awayTeam._id || match.awayTeam,
+      updatedMatch.tournamentId._id || updatedMatch.tournamentId
+    );
 
     if (fixture) {
       await fixtureDb.updateFixtureResult(fixture._id, {
@@ -110,57 +98,60 @@ export const submitMatchResult = async ({ matchId, userId, resultPayload }) => {
         homeScore: updatedMatch.homeGoals,
         awayScore: updatedMatch.awayGoals,
       });
+
+      // ✅ Trigger fixture progression (cup / league / hybrid)
+      if (update.isClosed) {
+        await fixtureService.handleFixtureCompletion(
+          match.fixtureId || fixture._id
+        );
+      }
     }
   } catch (err) {
-    // Log but don't fail the whole result submission
-    console.error("Error syncing fixture after match update:", err);
+    console.error("Fixture sync/progression error:", err);
   }
 
-  // If match closed, call participant stats update (if you don't rely on match post-save hook)
+  // ✅ Update user stats
   if (update.isClosed) {
-    try {
-      // Convert participants into the structure your participant stats expects
-      // Example: [{ userId, score, isWinner, kills }]
-      const statsParticipants = (updatedMatch.participants || []).map((p) => ({
-        userId: p.userId._id ? p.userId._id : p.userId,
-        score: p.score || 0,
-        isWinner: !!p.isWinner,
-        kills: p.kills || 0,
-      }));
+    const statsParticipants = participants.map((p) => ({
+      userId: p.userId,
+      score: p.score,
+      isWinner: p.isWinner,
+      kills: p.kills,
+      goals: p.goals,
+    }));
 
+    try {
       await userStatsService.updateParticipantStats({
         matchId: updatedMatch._id,
-        tournamentId: updatedMatch.tournamentId._id || updatedMatch.tournamentId,
+        tournamentId:
+          updatedMatch.tournamentId._id || updatedMatch.tournamentId,
         participants: statsParticipants,
       });
     } catch (err) {
-      // If you already have the post-save hook doing this, this might be redundant.
-      console.error("Error updating participant stats after match close:", err);
+      console.error("Error updating participant stats:", err);
     }
   }
 
-  // Emit live update: match_result
-  emitTournamentUpdate(tournament._id || tournament, {
-    type: "match_result",
-    match: updatedMatch,
+  // ✅ Notify and emit events
+  await notifyAndEmit({
+    tournamentId: tournament._id,
+    recipients: tournament.participants.map((p) => p.userId._id || p.userId),
+    notificationPayload: {
+      recipient: tournament.participants.map((p) => p.userId._id || p.userId),
+      sender: userId,
+      type: "match_result",
+      title: "Match Result Updated",
+      message: `Results have been posted for a match in ${tournament.name}.`,
+      meta: { matchId: updatedMatch._id },
+    },
+    socketEvent: { type: "match_result", match: updatedMatch },
   });
 
-  // Emit standings update request (client can call /table or we can compute here)
-  emitTournamentUpdate(tournament._id || tournament, {
-    type: "standings_refresh",
-    tournamentId: tournament._id || tournament,
+  // ✅ Request standings refresh
+  await notifyAndEmit({
+    tournamentId: tournament._id,
+    socketEvent: { type: "standings_refresh", tournamentId: tournament._id },
   });
 
   return updatedMatch;
-};
-
-/**
- * Get matches for a tournament
- */
-export const getTournamentMatches = async (tournamentId) => {
-  // validate tournament existence
-  const tournament = await tournamentDb.findTournamentById(tournamentId);
-  if (!tournament) throw new NotFoundException("Tournament not found");
-
-  return await matchDb.findMatchesByTournament(tournamentId);
 };

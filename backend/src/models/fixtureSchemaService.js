@@ -97,3 +97,34 @@ export const getMatchdayStats = async (tournamentId, matchday) => {
 
   return stats[0] || { totalFixtures: 0, completedFixtures: 0, totalGoals: 0 };
 };
+
+export const getFixturesByRound = async (tournamentId, round) => {
+  return await Fixture.find({ tournamentId, round }).sort({ matchday: 1 });
+};
+
+// Get fixtures by "type" (e.g., group, cup)
+export const getFixturesByType = async (tournamentId, type) => {
+  return await Fixture.find({ tournamentId, type }).sort({ matchday: 1 });
+};
+
+// Efficiently find fixture by teams (bidirectional)
+export const findByTeamsAndTournament = async (
+  homeId,
+  awayId,
+  tournamentId
+) => {
+  return await Fixture.findOne({
+    tournamentId,
+    $or: [
+      { homeTeam: homeId, awayTeam: awayId },
+      { homeTeam: awayId, awayTeam: homeId },
+    ],
+  });
+};
+
+// Also expose findFixtureById if not present
+export const findFixtureById = async (id) => {
+  return await Fixture.findById(id)
+    .populate("homeTeam", "username profilePicture")
+    .populate("awayTeam", "username profilePicture");
+};

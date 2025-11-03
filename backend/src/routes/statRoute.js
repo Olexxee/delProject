@@ -1,48 +1,11 @@
-// import { Router } from "express";
-// import authMiddleware from "../middlewares/authenticationMdw.js";
-// import {
-//   requireGroupAdmin,
-//   requirePlatformGroupAdmin,
-//   requireSuperAdmin,
-// } from "../admin/adminMiddleware.js";
-// import * as statController from "../userStatLogic/userStatController.js";
+import express from "express";
+import * as statsController from "../controllers/userStatsController.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
 
-// statRoute = Router();
+const router = express.Router();
 
-// // Create or get stats for a user in a group
-// statRoute.post(
-//   "/:groupId/:userId",
-//   authMiddleware,
-//   requireGroupAdmin,
-//   createStats
-// );
+router.get("/:userId", authMiddleware, statsController.getPlayerStats);
+router.patch("/:userId/reset", authMiddleware, statsController.resetStats);
+router.delete("/:userId", authMiddleware, statsController.deleteStats);
 
-// // Get stats for a specific user in a group
-// statRoute.get("/:groupId/:userId", authMiddleware, statController.);
-
-// // Get all stats for current user across all groups
-// statRoute.get("/all", authMiddleware, requireSuperAdmin, getAllStatsForUser);
-
-// // Update a user's stats in a group (e.g. wins, points)
-// statRoute.patch(
-//   "/:groupId/:userId",
-//   authMiddleware,
-//   requireGroupAdmin,
-//   patchStats
-// );
-
-// // Get group leaderboard (top users by score)
-// statRoute.get("/leaderboard/:groupId", authMiddleware, getGroupLeaderboard);
-
-// // Recalculate rankings for a group
-// statRoute.post("/recalculate/:groupId", authMiddleware, recalculateRankings);
-
-// // Increment stats (e.g. score, wins)
-// statRoute.patch(
-//   "/increment/:groupId/:userId",
-//   authMiddleware,
-//   requireGroupAdmin,
-//   incrementStats
-// );
-
-// export default statRoute;
+export default router;

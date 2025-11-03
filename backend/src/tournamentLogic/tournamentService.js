@@ -1,5 +1,8 @@
 import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as membershipService from "../groupLogic/membershipService.js";
+import * as fixturesService from "./fixtureService.js";
+import * as notificationService from "../groupLogic/notifications/notificationService.js";
+import io from "../server/socket.js";
 import * as userStatsService from "../user/statschemaService.js";
 import * as groupDb from "../groupLogic/gSchemaService.js";
 import {
@@ -93,7 +96,76 @@ export const createTournament = async (payload) => {
     throw new BadRequestError("Failed to create tournament");
   }
 
+  // Notify admin or creator
+  await notificationService.createNotification({
+    user: creatorId,
+    type: "tournament_created",
+    message: `Your tournament "${tournament.name}" has been created successfully.`,
+    referenceId: tournament._id,
+  });
+
+  // Broadcast to all connected users (optional)
+  io.emit("tournament:new", {
+    message: `A new tournament "${tournament.name}" is open for registration!`,
+    tournamentId: tournament._id,
+  });
+
   return tournament;
+};
+
+export const startTournamentLogic = async (tournamentId, initiatorId) => {
+  const tournament = await tournamentService.getTournamentById(tournamentId);
+  if (!tournament) throw new NotFoundException("Tournament not found.");
+
+  // Ensure tournament is ready to start
+  if (tournament.status !== "upcoming" && tournament.status !== "registration") {
+    throw new BadRequestException("Tournament cannot be started in this phase.");
+  }
+
+  // Ensure minimum participants
+  if (tournament.currentParticipants < 4)
+    throw new BadRequestException("Not enough participants to start the tournament.");
+
+  // STEP 1️⃣: Generate fixtures
+  const fixtureResult = await fixturesService.generateTournamentFixtures({
+    tournamentId,
+    userId: initiatorId,
+  });
+
+  // STEP 2️⃣: Update tournament status
+  await tournamentService.updateTournament(tournamentId, {
+    status: "ongoing",
+    startedAt: new Date(),
+  });
+
+  // STEP 3️⃣: Notify participants
+  await Promise.all(
+    tournament.participants.map((p) =>
+      notificationService.createNotification({
+        user: p.userId._id || p.userId,
+        type: "tournament_started",
+        message: `Tournament "${tournament.name}" has officially started! Check your fixtures.`,
+        referenceId: tournament._id,
+      })
+    )
+  );
+
+  // STEP 4️⃣: Real-time event
+  io.emit("tournament:started", {
+    tournamentId: tournament._id,
+    name: tournament.name,
+    type: tournament.type,
+    fixtureCount: fixtureResult.count,
+  });
+
+  return {
+    message: "Tournament started successfully",
+    tournamentId: tournament._id,
+    fixtureSummary: {
+      totalFixtures: fixtureResult.count,
+      type: fixtureResult.type,
+    },
+  };
 };
 
 
