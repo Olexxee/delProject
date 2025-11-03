@@ -27,5 +27,6 @@ if (!admin.apps.length) {
 }
 
 const firebaseStorage = admin.storage().bucket();
+export const firebaseMessaging = admin.messaging();
 
 export { admin, firebaseStorage };

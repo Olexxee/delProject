@@ -1,4 +1,3 @@
-import logger from "../../lib/logger.js";
 export const welcomeEmailTemplate = (firstName, profileLink) => ({
   subject: `Welcome to Jami 🎉 Your community abroad awaits!`,
   html: `

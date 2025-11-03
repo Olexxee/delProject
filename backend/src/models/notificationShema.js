@@ -1,6 +1,5 @@
-import logger from "../lib/logger.js";
 import mongoose from "mongoose";
-import { NotificationTypes } from "../logic/notifications/notificationTypes.js";
+import { NotificationTypes } from "../groupLogic/notifications/notificationTypes.js";
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -27,7 +26,7 @@ const notificationSchema = new mongoose.Schema(
 
     type: {
       type: String,
-      enum: Object.values(NotificationTypes), // ✅ use shared constants
+      enum: Object.values(NotificationTypes), 
       required: true,
     },
 

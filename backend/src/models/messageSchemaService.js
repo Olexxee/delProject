@@ -1,8 +1,7 @@
-// models/messageSchemaService.js
-import Message from "./messageModel.js";
+import Message from "./messageSchema.js";
 
 /**
- * ➕ Create a new message
+ *  Create a new message
  */
 export const createMessage = async (data) => {
   const message = await Message.create(data);
@@ -10,7 +9,7 @@ export const createMessage = async (data) => {
 };
 
 /**
- * 📖 Get all messages in a specific chat
+ * Get all messages in a specific chat
  */
 export const getMessagesByChatId = async (chatId) => {
   const messages = await Message.find({ chatId })
@@ -21,7 +20,7 @@ export const getMessagesByChatId = async (chatId) => {
 };
 
 /**
- * 🔍 Get a single message by its ID
+ *  Get a single message by its ID
  */
 export const getMessageById = async (messageId) => {
   const message = await Message.findById(messageId)
@@ -31,7 +30,7 @@ export const getMessageById = async (messageId) => {
 };
 
 /**
- * ✏️ Update a message (used internally for editing or marking deleted)
+ * Update a message (used internally for editing or marking deleted)
  */
 export const updateMessage = async (messageId, updates) => {
   const message = await Message.findByIdAndUpdate(messageId, updates, {
@@ -41,7 +40,7 @@ export const updateMessage = async (messageId, updates) => {
 };
 
 /**
- * ❌ Permanently delete a message (hard delete)
+ * Permanently delete a message (hard delete)
  */
 export const deleteMessageById = async (messageId) => {
   const deleted = await Message.findByIdAndDelete(messageId);

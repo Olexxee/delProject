@@ -1,4 +1,3 @@
-import logger from "../../lib/logger.js";
 import transport from "../../lib/classes/nodeMailerClass.js";
 import configService from "../../lib/classes/configClass.js";
 import { getEmailTemplate } from "../../lib/emailTemplates.js";

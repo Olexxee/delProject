@@ -18,7 +18,7 @@ export const generateLeagueFixtures = async (tournament, participants) => {
 };
 
 // Single Round-Robin Algorithm
-const generateSingleRoundRobin = (participants, tournamentId) => {
+export const generateSingleRoundRobin = (participants, tournamentId) => {
   const fixtures = [];
   const n = participants.length;
   const hasOdd = n % 2 !== 0;

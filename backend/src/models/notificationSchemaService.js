@@ -1,7 +1,5 @@
-import logger from "../lib/logger.js";
-// models/notificationSchemaService.js
 import Notification from "./notificationShema.js";
-import { NotificationTypes } from "../logic/notifications/notificationTypes.js";
+import { NotificationTypes } from "../groupLogic/notifications/notificationTypes.js";
 
 /**
  * Create a new notification

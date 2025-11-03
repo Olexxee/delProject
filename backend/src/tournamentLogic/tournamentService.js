@@ -2,7 +2,6 @@ import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as membershipService from "../groupLogic/membershipService.js";
 import * as fixturesService from "./fixtureService.js";
 import * as notificationService from "../groupLogic/notifications/notificationService.js";
-import io from "../server/socket.js";
 import * as userStatsService from "../user/statschemaService.js";
 import * as groupDb from "../groupLogic/gSchemaService.js";
 import {
@@ -118,13 +117,20 @@ export const startTournamentLogic = async (tournamentId, initiatorId) => {
   if (!tournament) throw new NotFoundException("Tournament not found.");
 
   // Ensure tournament is ready to start
-  if (tournament.status !== "upcoming" && tournament.status !== "registration") {
-    throw new BadRequestException("Tournament cannot be started in this phase.");
+  if (
+    tournament.status !== "upcoming" &&
+    tournament.status !== "registration"
+  ) {
+    throw new BadRequestException(
+      "Tournament cannot be started in this phase."
+    );
   }
 
   // Ensure minimum participants
   if (tournament.currentParticipants < 4)
-    throw new BadRequestException("Not enough participants to start the tournament.");
+    throw new BadRequestException(
+      "Not enough participants to start the tournament."
+    );
 
   // STEP 1️⃣: Generate fixtures
   const fixtureResult = await fixturesService.generateTournamentFixtures({
@@ -167,7 +173,6 @@ export const startTournamentLogic = async (tournamentId, initiatorId) => {
     },
   };
 };
-
 
 // Get tournament details
 export const getTournamentById = async (tournamentId) => {
@@ -253,7 +258,7 @@ export const getTournamentWithFixtures = async (tournamentId) => {
 
   // Get fixture statistics
   const fixtureStats = await fixtureDb.getTournamentFixtures(tournamentId);
-  const completedFixtures = fixtureStats.filter(f => f.isCompleted).length;
+  const completedFixtures = fixtureStats.filter((f) => f.isCompleted).length;
   const totalFixtures = fixtureStats.length;
 
   return {
@@ -262,7 +267,10 @@ export const getTournamentWithFixtures = async (tournamentId) => {
       total: totalFixtures,
       completed: completedFixtures,
       remaining: totalFixtures - completedFixtures,
-      progress: totalFixtures > 0 ? Math.round((completedFixtures / totalFixtures) * 100) : 0,
+      progress:
+        totalFixtures > 0
+          ? Math.round((completedFixtures / totalFixtures) * 100)
+          : 0,
     },
   };
 };
@@ -278,7 +286,10 @@ export const checkTournamentReadiness = async (tournamentId) => {
   const hasMinimumParticipants = tournament.currentParticipants >= 4;
 
   return {
-    isReady: fixturesExist && hasMinimumParticipants && tournament.status === "upcoming",
+    isReady:
+      fixturesExist &&
+      hasMinimumParticipants &&
+      tournament.status === "upcoming",
     checks: {
       fixturesGenerated: fixturesExist,
       minimumParticipants: hasMinimumParticipants,

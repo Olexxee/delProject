@@ -21,3 +21,16 @@ export const toggleMuteSchema = Joi.object({
   mute: Joi.boolean().required(),
 });
 
+export const changeRoleSchema = Joi.object({
+  memberId: Joi.string()
+    .required()
+    .regex(/^[a-fA-F0-9]{24}$/)
+    .message("Invalid member ID format"),
+  newRole: Joi.string()
+    .valid("admin", "moderator", "member")
+    .required()
+    .messages({
+      "any.only": "Role must be one of admin, moderator, or member",
+      "string.empty": "Role cannot be empty",
+    }),
+});

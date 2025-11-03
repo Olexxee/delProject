@@ -1,5 +1,5 @@
-import * as chatRoomService from "../../services/chatRoomService.js";
-import * as messageService from "../../services/messageService.js";
+import * as chatRoomService from "../../models/chatSchemaService.js";
+import * as messageService from "./messageService.js";
 import * as errorService from "../../lib/classes/errorClasses.js";
 
 /**

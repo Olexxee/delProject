@@ -1,5 +1,5 @@
-import Media from "../models/mediaSchema.js";
-import * as firebaseService from "../firebase/firebaseService.js";
+import Media from "../../models/mediaSchema.js";
+import * as firebaseService from "../../firebase/firebaseService.js";
 
 const mediaService = {
   async create({

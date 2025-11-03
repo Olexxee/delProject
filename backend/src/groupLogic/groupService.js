@@ -1,7 +1,7 @@
 import * as groupDb from "../groupLogic/gSchemaService.js";
 import * as userService from "../user/userService.js";
 import * as membership from "../groupLogic/membershipSchemaService.js";
-import * as chatLogic from "../chat/chatService.js";
+import * as chatLogic from "./chat/chatService.js";
 import configService from "../lib/classes/configClass.js";
 import transport from "../lib/classes/nodeMailerClass.js";
 import {
@@ -9,7 +9,7 @@ import {
   NotFoundException,
   BadRequestError,
   UnauthorizedException,
-  ForbiddenException,
+  ForbiddenError,
 } from "../lib/classes/errorClasses.js";
 
 /* ---------------------------------------------------------
@@ -117,7 +117,7 @@ export const leaveGroup = async (userId, groupId) => {
   if (!member) throw new NotFoundException("Membership not found");
 
   if (member.role === "admin") {
-    throw new ForbiddenException(
+    throw new ForbiddenError(
       "Admin cannot leave the group directly. Transfer ownership first."
     );
   }
@@ -134,7 +134,7 @@ export const kickUserFromGroup = async ({ adminId, groupId, targetUserId }) => {
     groupId,
   });
   if (!adminMembership || adminMembership.role !== "admin") {
-    throw new ForbiddenException("Only group admins can remove users");
+    throw new ForbiddenError("Only group admins can remove users");
   }
 
   const targetMembership = await membership.findMembership({
@@ -162,7 +162,7 @@ export const changeMemberRole = async ({
     groupId,
   });
   if (!adminMembership || adminMembership.role !== "admin") {
-    throw new ForbiddenException("Only admins can change roles");
+    throw new ForbiddenError("Only admins can change roles");
   }
 
   const updated = await membership.updateMembership(
@@ -182,7 +182,7 @@ export const toggleGroupMute = async ({ adminId, groupId, mute }) => {
     groupId,
   });
   if (!adminMembership || adminMembership.role !== "admin") {
-    throw new ForbiddenException("Only group admins can mute/unmute the group");
+    throw new ForbiddenError("Only group admins can mute/unmute the group");
   }
 
   await groupDb.updateGroup(groupId, { isMuted: mute });

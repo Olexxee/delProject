@@ -16,11 +16,9 @@ import { notifyAndEmit } from "../lib/notifiers/tournamentNotifier.js";
  * Submit match result (admin only)
  */
 export const submitMatchResult = async ({ matchId, userId, resultPayload }) => {
-  // ✅ Validate input
   const { value, error } = matchResultSchema.validate(resultPayload);
   if (error) throw new BadRequestError(error.details[0].message);
 
-  // ✅ Get match + tournament
   const match = await matchService.findMatchById(matchId);
   if (!match) throw new NotFoundException("Match not found");
 
@@ -29,7 +27,6 @@ export const submitMatchResult = async ({ matchId, userId, resultPayload }) => {
   );
   if (!tournament) throw new NotFoundException("Tournament not found");
 
-  // ✅ Admin check
   await membershipService.assertIsAdmin({
     userId,
     groupId: tournament.groupId._id || tournament.groupId,
@@ -37,7 +34,7 @@ export const submitMatchResult = async ({ matchId, userId, resultPayload }) => {
 
   const { homeGoals, awayGoals } = value;
 
-  // ✅ Map participants & auto-determine winners
+  // Map participants & auto-determine winners
   const participants = (value.participants || []).map((p) => {
     const userIdStr = p.userId.toString();
     const homeTeamId = match.homeTeam._id
@@ -71,7 +68,7 @@ export const submitMatchResult = async ({ matchId, userId, resultPayload }) => {
     };
   });
 
-  // ✅ Build match update object
+  // Build match update object
   const update = {
     participants,
     homeGoals,
@@ -80,10 +77,10 @@ export const submitMatchResult = async ({ matchId, userId, resultPayload }) => {
     closedAt: value.isClosed ? new Date() : null,
   };
 
-  // ✅ Update match record
+  // Update match record
   const updatedMatch = await matchService.updateMatch(matchId, update);
 
-  // ✅ Sync with fixture
+  // Sync with fixture
   try {
     const fixture = await fixtureDb.findByTeamsAndTournament(
       match.homeTeam._id || match.homeTeam,
@@ -99,7 +96,7 @@ export const submitMatchResult = async ({ matchId, userId, resultPayload }) => {
         awayScore: updatedMatch.awayGoals,
       });
 
-      // ✅ Trigger fixture progression (cup / league / hybrid)
+      // Trigger fixture progression (cup / league / hybrid)
       if (update.isClosed) {
         await fixtureService.handleFixtureCompletion(
           match.fixtureId || fixture._id
@@ -110,7 +107,7 @@ export const submitMatchResult = async ({ matchId, userId, resultPayload }) => {
     console.error("Fixture sync/progression error:", err);
   }
 
-  // ✅ Update user stats
+  // Update user stats
   if (update.isClosed) {
     const statsParticipants = participants.map((p) => ({
       userId: p.userId,

@@ -1,4 +1,4 @@
-import { generateSingleRoundRobin } from "./leagueGenerator.js";
+import { generateSingleRoundRobin } from "./league.js";
 
 // HYBRID GENERATOR — Group + Knockout
 export const generateHybridFixtures = async (tournament, participants) => {

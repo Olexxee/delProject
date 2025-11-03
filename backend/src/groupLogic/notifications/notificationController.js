@@ -1,4 +1,3 @@
-import logger from "../../lib/logger.js";
 import * as notificationService from "./notificationService.js";
 import asyncWrapper from "../../lib/asyncWrapper.js"; // keep it consistent with your existing imports
 

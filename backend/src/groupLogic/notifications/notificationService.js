@@ -1,4 +1,3 @@
-import logger from "../../lib/logger.js";
 import * as notificationDb from "../../models/notificationSchemaService.js";
 import { pushChannel } from "./pushChannel.js";
 import { emailChannel } from "./emailChannel.js";

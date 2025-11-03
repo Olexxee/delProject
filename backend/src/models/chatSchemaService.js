@@ -1,5 +1,5 @@
-import ChatRoom from "../models/ChatRoom.js";
-import Message from "../models/Message.js";
+import ChatRoom from "./chatSchema.js";
+import Message from "./messageSchema.js";
 
 /**
  * 🔍 Find existing peer chat based on context (Match, Buddy, Event, Mart, Group)
