@@ -6,6 +6,13 @@ import path from "path";
 
 dotenv.config();
 
+console.log("ENV:", configService.get("NODE_ENV"));
+console.log("PORT:", configService.getOrThrow("PORT"));
+console.log("JWT:", configService.getOrThrow("JWT_SECRET").slice(0, 6) + "...");
+console.log("COOKIE:", configService.getOrThrow("COOKIE_SECRET").slice(0, 6) + "...");
+console.log("MONGO_URI OK:", !!configService.getOrThrow("MONGO_URI"));
+
+
 (() => {
   try {
     const port = parseInt(configService.getOrThrow("PORT"));

@@ -1,4 +1,6 @@
 import User from "./userSchema.js";
+import { serializeUser } from "../lib/serializeUser.js";
+import UserStats from "../user/userStatSchema.js";
 
 export const createUser = async (payload) => {
   const user = await User.create(payload);
@@ -18,6 +20,29 @@ export const findUserWithVerificationFields = async ({ email }) => {
     "+verificationCode +verificationCodeExpiresAt"
   );
 };
+
+export const getUserProfile = async (userId) => {
+  // Fetch basic user info
+  const user = await User.findById(userId)
+    .select(
+      "-password -verificationCode -verificationCodeValidation -verificationCodeExpiresAt"
+    )
+    .lean();
+
+  if (!user) throw new Error("User not found");
+
+  // Fetch tournament-specific stats
+  const stats = await UserStats.find({ user: userId })
+    .populate("tournamentsPlayedIn.tournamentId", "name status settings")
+    .populate("tournamentsPlayedIn.fixtures.opponent", "username profilePicture")
+    .lean();
+
+  // Serialize user with Delyx-style enrichment
+  return serializeUser(user, stats.flatMap((s) => s.tournamentsPlayedIn));
+};
+
+
+
 
 export const findAndUpdateUserById = async (id, updateData) => {
   return await User.findByIdAndUpdate(id, updateData, {

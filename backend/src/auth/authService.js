@@ -2,7 +2,6 @@ import * as userService from "../user/userService.js";
 import configService from "../lib/classes/configClass.js";
 import {
   ConflictException,
-  ValidationException,
   NotFoundException,
   ForbiddenError,
   BadRequestError,
@@ -11,123 +10,68 @@ import {
 import bcrypt from "bcrypt";
 import transport from "../lib/classes/nodeMailerClass.js";
 import jwtService from "../lib/classes/jwtClass.js";
+import { serializeUser } from "../lib/serializeUser.js";
+import crypto from "crypto";
 
-export const authenticateUser = async (payload) => {
-  let user;
+/* ================= AUTHENTICATION ================= */
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (emailRegex.test(payload.email)) {
-    user = await userService.findUserByEmail({ email: payload.email });
-  }
+export const authenticateUser = async ({ email, password }) => {
+  const user = await userService.findUserByEmail({ email });
 
-  if (!user)
-    throw new NotFoundException(
-      "Invalid credentials, please check your credentials and try again"
-    );
+  if (!user) throw new UnauthorizedException("Invalid credentials");
 
-  const isValidPassword = await bcrypt.compare(payload.password, user.password);
+  const isValidPassword = await bcrypt.compare(password, user.password);
+  if (!isValidPassword) throw new UnauthorizedException("Invalid credentials");
 
-  if (!isValidPassword)
-    throw new UnauthorizedException(
-      "Invalid credentials, please check your credentials and try again"
-    );
-
-  return jwtService.generateAuthenticationToken({
+  const token = jwtService.generateAuthenticationToken({
     id: user._id,
     email: user.email,
-    role: user.role
+    role: user.role,
   });
+
+  return { token, user: serializeUser(user) };
 };
 
 export const registerUser = async (payload) => {
-  const user = await userService.findUserByEmail({ email: payload.email });
-
-  if (user) {
-    throw new ConflictException("User already exists");
-  }
+  const existingUser = await userService.findUserByEmail({ email: payload.email });
+  if (existingUser) throw new ConflictException("User already exists");
 
   const newUser = await userService.createUser(payload);
-  console.log(newUser);
 
-  return jwtService.generateAuthenticationToken({
+  const token = jwtService.generateAuthenticationToken({
     id: newUser._id,
     email: newUser.email,
+    role: newUser.role,
   });
+
+  return { token, user: serializeUser(newUser) };
 };
 
-export const loginUser = async (payload) => {
-  const user = await userService.findUserByEmail({ email: payload.email });
-
-  if (!user) {
-    throw new NotFoundException("User not found");
-  }
-
-  const isValidPassword = await bcrypt.compare(payload.password, user.password);
-
-  if (!isValidPassword) {
-    throw new UnauthorizedException("Invalid credentials");
-  }
-
-  console.log(`${user.email} has logged in sucessfully`);
-
-  return jwtService.generateAuthenticationToken({
-    id: user._id,
-    email: user.email,
-  });
-};
+/* ================= USER PROFILE ================= */
 
 export const getUserProfile = async (email) => {
   const user = await userService.findUserByEmail({ email });
-  if (!user) {
-    throw new NotFoundException("User not found");
-  }
-
-  return {
-    id: user._id,
-    email: user.email,
-    isVerified: user.isVerified,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
-  };
+  if (!user) throw new NotFoundException("User not found");
+  return serializeUser(user);
 };
 
-export const updateUserProfile = async (payload) => {
-  const { email, ...updateData } = payload;
+export const updateUserProfile = async ({ email, ...updates }) => {
   const user = await userService.findUserByEmail({ email });
+  if (!user) throw new NotFoundException("User not found");
+  if (!user.verified) throw new ForbiddenError("Only verified users can update profile");
 
-  if (!user) {
-    throw new NotFoundException("User do not exist");
-  }
-
-  if (!user.isVerified) {
-    throw new ForbiddenError("Only verified users can Update profile");
-  }
-
-  const updatedUser = await userService.updateUserByEmail(email, updateData);
-
-  return {
-    message: "Profile Updated Successfully",
-    user: updatedUser,
-  };
+  const updatedUser = await userService.updateUserByEmail(email, updates);
+  return serializeUser(updatedUser);
 };
+
+/* ================= EMAIL VERIFICATION ================= */
 
 export const sendVerificationEmail = async (email) => {
   const user = await userService.findUserByEmail({ email });
-  const codeExpiresIn = configService.getOrThrow("JWT_EXPIRE_IN");
+  if (!user) throw new NotFoundException("User not found");
+  if (user.verified) throw new BadRequestError("User already verified");
 
-  if (!user) {
-    throw new NotFoundException("User not found");
-  }
-
-  if (user.isVerified) {
-    throw new BadRequestException("User already verified");
-  }
-
-  // Generate the verification code
-
-  const verificationCode = Math.floor(
-    100000 + Math.random() * 900000
-  ).toString();
+  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 
   const info = await transport.sendMail({
     from: configService.getOrThrow("EMAIL"),
@@ -140,172 +84,88 @@ export const sendVerificationEmail = async (email) => {
     throw new BadRequestError("Failed to send verification email");
   }
 
-  // To hash the verification code
-  const hashedVerificationCode = await bcrypt.hash(verificationCode, 10);
+  user.verificationCode = await bcrypt.hash(verificationCode, 10);
+  user.verificationCodeExpiresAt = Date.now() + 10 * 60 * 1000;
+  await user.save();
 
-  // Set expiration for the code
-  const expiresInMinutes = 10; // or get it from config
-  user.verificationCode = hashedVerificationCode;
-  user.verificationCodeExpiresAt = Date.now() + expiresInMinutes * 60 * 1000;
-
-  await user.save(); // Save updated user data
-
-  return {
-    message: "Verification email sent",
-    expiresIn: expiresInMinutes,
-  };
+  return { expiresIn: 10 }; // minutes
 };
 
 export const verifyUser = async (email, code) => {
   const user = await userService.findUserWithVerificationFields({ email });
+  if (!user) throw new NotFoundException("User not found");
 
-  if (!user) {
-    throw new NotFoundException("User not found");
-  }
-
-  if (user.isVerified) {
-    throw new BadRequestError("User already verified");
-  }
-
-  if (!code || !user.verificationCode || !user.verificationCodeExpiresAt) {
-    throw new BadRequestError("Verification code is missing or invalid");
-  }
-
-  // Check expiration first (cheaper than bcrypt)
   if (user.verificationCodeExpiresAt < Date.now()) {
     throw new BadRequestError("Verification code expired");
   }
 
-  const isValidCode = await bcrypt.compare(code, user.verificationCode);
-  if (!isValidCode) {
-    throw new BadRequestError("Invalid verification code");
-  }
+  const isValid = await bcrypt.compare(code, user.verificationCode);
+  if (!isValid) throw new BadRequestError("Invalid verification code");
 
   user.verified = true;
   user.verificationCode = undefined;
   user.verificationCodeExpiresAt = undefined;
   await user.save();
 
-  return {
-    success: true,
-    message: "User verified successfully",
-  };
+  return serializeUser(user);
 };
 
-export const changePassword = async (email, oldPassword, newPassword) => {
-  const user = await userService.findUserByEmail({ email });
+/* ================= PASSWORD MANAGEMENT ================= */
 
-  if (!user) {
-    throw new NotFoundException("User not found");
-  }
+export const changePassword = async (userId, { currentPassword, newPassword }) => {
+  const user = await userService.findUserById(userId);
+  if (!user) throw new NotFoundException("User not found");
 
-  if (oldPassword === newPassword) {
-    throw new BadRequestError(
-      "New password cannot be the same as the old password"
-    );
-  }
+  const isValid = await bcrypt.compare(currentPassword, user.password);
+  if (!isValid) throw new BadRequestError("Current password is incorrect");
 
-  if (user.isVerified) {
-    throw new BadRequestError("User is not verified");
-  }
-
-  const isValidPassword = await bcrypt.compare(oldPassword, user.password);
-
-  if (!isValidPassword) {
-    throw new UnauthorizedException("Invalid old password");
-  }
-
-  user.password = newPassword;
+  user.password = await bcrypt.hash(newPassword, 10);
   await user.save();
-
-  return {
-    status: "success",
-    message: "Password changed successfully",
-  };
+  return true;
 };
 
 export const forgotPassword = async (email) => {
   const user = await userService.findUserByEmail({ email });
+  if (!user) throw new NotFoundException("User not found");
 
-  if (!user) {
-    throw new NotFoundException("User not found");
-  }
+  const token = crypto.randomBytes(32).toString("hex");
+  const tokenExpires = Date.now() + 60 * 60 * 1000; // 1 hour
 
-  if (user.isVerified) {
-    throw new BadRequestError("User is not verified");
-  }
+  user.resetPasswordToken = await bcrypt.hash(token, 10);
+  user.resetPasswordExpires = tokenExpires;
+  await user.save();
 
-  const codeExpiresIn = configService.getOrThrow("JWT_EXPIRE_IN");
-
-  const verificationCode = Math.floor(
-    100000 + Math.random() * 900000
-  ).toString();
+  const resetLink = `${configService.getOrThrow("FRONTEND_URL")}/reset-password?token=${token}&email=${user.email}`;
 
   const info = await transport.sendMail({
     from: configService.getOrThrow("EMAIL"),
     to: user.email,
-    subject: "Forgot Password",
-    text: `Your verification code is ${verificationCode}`,
+    subject: "Password Reset Request",
+    text: `Reset your password using this link: ${resetLink}`,
   });
 
   if (!info.accepted.includes(user.email)) {
-    throw new BadRequestError("Failed to send verification email");
+    throw new BadRequestError("Failed to send reset email");
   }
 
-  const hashedVerificationCode = await bcrypt.hash(verificationCode, 10);
-  user.verificationCode = hashedVerificationCode;
-  user.verificationCodeExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-  await user.save();
-
-  return {
-    message: "Verification email sent",
-    expiresIn: codeExpiresIn,
-  };
+  return { message: "Password reset link sent to your email" };
 };
 
-export const resetPassword = async (email, code, newPassword) => {
-  const user = await userService.findUserWithVerificationFields({ email });
+export const resetPassword = async (token, newPassword, email) => {
+  const user = await userService.findUserByEmail({ email });
+  if (!user) throw new NotFoundException("User not found");
 
-  if (!user) {
-    throw new NotFoundException("User not found");
+  if (user.resetPasswordExpires < Date.now()) {
+    throw new BadRequestError("Reset token expired");
   }
 
-  if (user.isVerified) {
-    throw new BadRequestError("User is not verified");
-  }
+  const isValid = await bcrypt.compare(token, user.resetPasswordToken);
+  if (!isValid) throw new BadRequestError("Invalid reset token");
 
-  if (!code || !user.verificationCode || !user.verificationCodeExpiresAt) {
-    throw new BadRequestError("Verification code is missing or invalid");
-  }
-
-  if (user.verificationCodeExpiresAt < Date.now()) {
-    throw new BadRequestError("Verification code expired");
-  }
-
-  const isValidCode = await bcrypt.compare(code, user.verificationCode);
-  if (!isValidCode) {
-    throw new BadRequestError("Invalid verification code");
-  }
-
-  user.password = newPassword;
+  user.password = await bcrypt.hash(newPassword, 10);
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpires = undefined;
   await user.save();
 
-  return {
-    status: "success",
-    message: "Password reset successfully",
-  };
-};
-
-const logoutUser = async (token) => {
-  if (!token) {
-    throw new UnauthorizedException("No token provided");
-  }
-
-  // Invalidate the token (implementation depends on your token storage)
-  // This could be done by adding the token to a blacklist or removing it from a database
-
-  return {
-    status: "success",
-    message: "User logged out successfully",
-  };
+  return true;
 };

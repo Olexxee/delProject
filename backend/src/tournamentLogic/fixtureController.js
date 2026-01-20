@@ -1,11 +1,14 @@
-import * as fixtureService from "./fixtureService.js";
+import * as fixtureService from "../services/fixtureService.js";
 import { asyncWrapper } from "../lib/utils.js";
 import {
   ValidationException,
   NotFoundException,
+  BadRequestError,
 } from "../lib/classes/errorClasses.js";
 
-// Generate fixtures for tournament
+// -------------------------------
+// GENERATE FIXTURES FOR TOURNAMENT
+// -------------------------------
 export const generateFixtures = asyncWrapper(async (req, res) => {
   const { tournamentId } = req.params;
   const userId = req.user._id;
@@ -17,53 +20,85 @@ export const generateFixtures = asyncWrapper(async (req, res) => {
 
   res.status(201).json({
     success: true,
+    message: "Fixtures generated successfully",
     ...result,
   });
 });
 
-// Get all tournament fixtures
+// -------------------------------
+// GET ALL TOURNAMENT FIXTURES
+// -------------------------------
 export const getTournamentFixtures = asyncWrapper(async (req, res) => {
   const { tournamentId } = req.params;
 
-  const result = await fixtureService.getTournamentFixtures(tournamentId);
+  const fixtures = await fixtureService.getTournamentFixtures(tournamentId);
 
   res.status(200).json({
     success: true,
-    ...result,
+    tournamentId,
+    fixturesCount: fixtures.length,
+    fixtures,
   });
 });
 
-// Get fixtures for specific matchday
+// -------------------------------
+// GET MATCHDAY FIXTURES
+// -------------------------------
 export const getMatchdayFixtures = asyncWrapper(async (req, res) => {
   const { tournamentId, matchday } = req.params;
 
-  const result = await fixtureService.getMatchdayFixtures({
+  const fixtures = await fixtureService.getMatchdayFixtures({
     tournamentId,
     matchday: parseInt(matchday),
   });
 
   res.status(200).json({
     success: true,
-    ...result,
+    tournamentId,
+    matchday: parseInt(matchday),
+    fixturesCount: fixtures.length,
+    fixtures,
   });
 });
 
-// Get team's fixtures
+// -------------------------------
+// GET TEAM FIXTURES
+// -------------------------------
 export const getTeamFixtures = asyncWrapper(async (req, res) => {
   const { tournamentId, teamId } = req.params;
 
-  const result = await fixtureService.getTeamFixtures({
+  const fixtures = await fixtureService.getTeamFixtures({
     tournamentId,
     teamId,
   });
 
   res.status(200).json({
     success: true,
-    ...result,
+    tournamentId,
+    teamId,
+    fixturesCount: fixtures.length,
+    fixtures,
   });
 });
 
-// Regenerate fixtures
+// -------------------------------
+// GET UPCOMING FIXTURES FOR LOGGED-IN USER
+// -------------------------------
+export const getUpcomingFixtures = asyncWrapper(async (req, res) => {
+  const userId = req.user._id;
+
+  const fixtures = await fixtureService.getUpcomingFixturesForUser(userId);
+
+  res.status(200).json({
+    success: true,
+    upcomingCount: fixtures.length,
+    fixtures,
+  });
+});
+
+// -------------------------------
+// REGENERATE FIXTURES (ADMIN ONLY)
+// -------------------------------
 export const regenerateFixtures = asyncWrapper(async (req, res) => {
   const { tournamentId } = req.params;
   const userId = req.user._id;
@@ -80,7 +115,9 @@ export const regenerateFixtures = asyncWrapper(async (req, res) => {
   });
 });
 
-// Start tournament
+// -------------------------------
+// START TOURNAMENT (ADMIN ONLY)
+// -------------------------------
 export const startTournament = asyncWrapper(async (req, res) => {
   const { tournamentId } = req.params;
   const userId = req.user._id;
@@ -92,19 +129,7 @@ export const startTournament = asyncWrapper(async (req, res) => {
 
   res.status(200).json({
     success: true,
+    message: "Tournament started successfully",
     ...result,
-  });
-});
-
-// Get upcoming fixtures across all tournaments for user
-export const getUpcomingFixtures = asyncWrapper(async (req, res) => {
-  const userId = req.user._id;
-
-  // This would require additional service method to get user's upcoming fixtures
-  // across all tournaments they're participating in
-
-  res.status(200).json({
-    success: true,
-    message: "Feature coming soon",
   });
 });

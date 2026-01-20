@@ -1,5 +1,5 @@
-import * as fixtureDb from "./fixtureSchemaService.js";
-import * as tournamentDb from "./tournamentSchemaService.js";
+import * as fixtureDb from "../models/fixtureSchemaService.js";
+import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as userStatsService from "../user/statschemaService.js";
 import {
   NotFoundException,

@@ -2,7 +2,7 @@ import { Router } from "express";
 import authMiddleware from "../middlewares/authenticationMdw.js";
 import { requireGroupAdmin, requirePlatformGroupAdmin, requireSuperAdmin } from "../admin/adminMiddleware.js";
 import {
-  createStats,
+
   getStats,
   getAllStatsForUser,
   patchStats,

@@ -1,4 +1,4 @@
-import * as tournamentDb from "./tournamentSchemaService.js";
+import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as membershipService from "../groupLogic/membershipService.js";
 import * as userStatsService from "../user/statschemaService.js";
 import * as userService from "../user/userService.js";
@@ -192,43 +192,63 @@ export const updateParticipantStats = async ({
   matchId,
   tournamentId,
   participants,
+  matchday,
+  scheduledDate,
 }) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
 
   for (const participant of participants) {
-    const { userId, score, isWinner, kills = 0 } = participant;
+    const { userId, goals = 0, isWinner } = participant;
 
-    // Determine match result
-    const isWin = isWinner;
-    const isDraw =
-      !isWinner && participants.filter((p) => p.isWinner).length === 0;
-    const isLoss = !isWinner && !isDraw;
+    // Determine result
+    const opponent = participants.find((p) => p.userId.toString() !== userId.toString());
+    const result = isWinner ? "win" : opponent?.isWinner ? "loss" : "draw";
 
-    // Calculate points based on tournament settings
-    let points = 0;
-    if (isWin) points = tournament.settings.pointsForWin;
-    else if (isDraw) points = tournament.settings.pointsForDraw;
-    else points = tournament.settings.pointsForLoss;
+    const userStats = await UserStats.findOne({
+      user: userId,
+      "tournamentsPlayedIn.tournamentId": tournamentId,
+    });
 
-    // Update tournament-specific stats
-    await userStatsService.updateUserStats(
-      userId,
-      tournament.groupId._id || tournament.groupId,
-      {
-        $inc: {
-          matchesPlayed: 1,
-          wins: isWin ? 1 : 0,
-          losses: isLoss ? 1 : 0,
-          score: points,
-        },
-        lastUpdated: new Date(),
-      }
+    if (!userStats) continue;
+
+    // Find the tournament record
+    const tournamentRecord = userStats.tournamentsPlayedIn.find(
+      (t) => t.tournamentId.toString() === tournamentId.toString()
     );
 
-    console.log(`📊 Updated stats for user ${userId}: +${points} points`);
+    if (!tournamentRecord) continue;
+
+    // Push fixture summary
+    tournamentRecord.fixtures.push({
+      fixtureId: matchId,
+      opponent: opponent?.userId,
+      homeOrAway: participant.userId.toString() === tournamentRecord?.homeTeam?.toString() ? "home" : "away",
+      goalsFor: goals,
+      goalsAgainst: opponent?.goals || 0,
+      result,
+      matchday,
+      scheduledDate,
+      status: "completed",
+    });
+
+    // Update totals
+    tournamentRecord.matchesPlayed += 1;
+    tournamentRecord.wins += result === "win" ? 1 : 0;
+    tournamentRecord.losses += result === "loss" ? 1 : 0;
+    tournamentRecord.draws += result === "draw" ? 1 : 0;
+    tournamentRecord.goalsScored += goals;
+    tournamentRecord.goalsConceded += opponent?.goals || 0;
+    tournamentRecord.points += result === "win"
+      ? tournament.settings.pointsForWin
+      : result === "draw"
+      ? tournament.settings.pointsForDraw
+      : tournament.settings.pointsForLoss;
+
+    userStats.lastUpdated = new Date();
+    await userStats.save();
   }
 
-  // Recalculate tournament standings after stats update
+  // Recalculate tournament ranks
   await recalculateTournamentStandings(tournamentId);
 };
 

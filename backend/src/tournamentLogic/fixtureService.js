@@ -1,5 +1,5 @@
 import * as fixtureDb from "../models/fixtureSchemaService.js";
-import * as tournamentDb from "./tournamentSchemaService.js";
+import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as membershipService from "../groupLogic/membershipService.js";
 import {
   NotFoundException,
@@ -8,21 +8,20 @@ import {
   ForbiddenError,
 } from "../lib/classes/errorClasses.js";
 
-// Generate fixtures for tournament
+// ================================
+// TOURNAMENT FIXTURE GENERATION
+// ================================
 export const generateTournamentFixtures = async ({ tournamentId, userId }) => {
-  // Get tournament details
   const tournament = await tournamentDb.findTournamentById(tournamentId);
-  if (!tournament) {
-    throw new NotFoundException("Tournament not found");
-  }
+  if (!tournament) throw new NotFoundException("Tournament not found");
 
-  // Check if user is group admin
+  // Ensure user is group admin
   await membershipService.assertIsAdmin({
     userId,
     groupId: tournament.groupId._id || tournament.groupId,
   });
 
-  // Check if tournament has enough participants
+  // Minimum participants check
   if (tournament.currentParticipants < 4) {
     throw new BadRequestError(
       "Tournament needs at least 4 participants to generate fixtures"
@@ -37,7 +36,7 @@ export const generateTournamentFixtures = async ({ tournamentId, userId }) => {
     );
   }
 
-  // Check tournament status
+  // Tournament phase check
   if (tournament.status !== "registration") {
     throw new BadRequestError(
       "Can only generate fixtures for tournaments in registration phase"
@@ -55,24 +54,16 @@ export const generateTournamentFixtures = async ({ tournamentId, userId }) => {
     );
   }
 
-  // Generate fixtures based on tournament type
-  let fixtures;
-  if (tournament.settings.rounds === "double") {
-    fixtures = generateDoubleRoundRobinFixtures(
-      activeParticipants,
-      tournamentId
-    );
-  } else {
-    fixtures = generateSingleRoundRobinFixtures(
-      activeParticipants,
-      tournamentId
-    );
-  }
+  // Generate fixtures
+  const fixtures =
+    tournament.settings.rounds === "double"
+      ? generateDoubleRoundRobinFixtures(activeParticipants, tournamentId)
+      : generateSingleRoundRobinFixtures(activeParticipants, tournamentId);
 
-  // Save fixtures to database
+  // Save to DB
   const createdFixtures = await fixtureDb.createFixtures(fixtures);
 
-  // Update tournament status and matchday info
+  // Update tournament metadata
   await tournamentDb.updateTournament(tournamentId, {
     status: "upcoming",
     totalMatchdays: Math.max(...fixtures.map((f) => f.matchday)),
@@ -87,72 +78,50 @@ export const generateTournamentFixtures = async ({ tournamentId, userId }) => {
   };
 };
 
-// Single Round-Robin Algorithm
+// ================================
+// FIXTURE GENERATION ALGORITHMS
+// ================================
 const generateSingleRoundRobinFixtures = (participants, tournamentId) => {
   const fixtures = [];
   const n = participants.length;
   let matchday = 1;
 
-  // Handle even number of participants
   if (n % 2 === 0) {
+    // Even participants
     for (let round = 0; round < n - 1; round++) {
       const roundFixtures = [];
-
       for (let match = 0; match < n / 2; match++) {
         const home = (round + match) % (n - 1);
         const away = (n - 1 - match + round) % (n - 1);
 
-        // Last team stays fixed
-        const homeTeam =
-          home === n - 1 ? participants[n - 1] : participants[home];
-        const awayTeam =
-          away === n - 1 ? participants[n - 1] : participants[away];
+        const homeTeam = home === n - 1 ? participants[n - 1] : participants[home];
+        const awayTeam = away === n - 1 ? participants[n - 1] : participants[away];
 
         if (homeTeam !== awayTeam) {
-          roundFixtures.push({
-            tournamentId,
-            matchday,
-            homeTeam,
-            awayTeam,
-          });
+          roundFixtures.push({ tournamentId, matchday, homeTeam, awayTeam });
         }
       }
-
       fixtures.push(...roundFixtures);
       matchday++;
     }
   } else {
-    // Handle odd number - add dummy team
+    // Odd participants (add bye)
     const extendedParticipants = [...participants, null];
     const extendedN = extendedParticipants.length;
 
     for (let round = 0; round < extendedN - 1; round++) {
       const roundFixtures = [];
-
       for (let match = 0; match < extendedN / 2; match++) {
         const home = (round + match) % (extendedN - 1);
         const away = (extendedN - 1 - match + round) % (extendedN - 1);
 
-        const homeTeam =
-          home === extendedN - 1
-            ? extendedParticipants[extendedN - 1]
-            : extendedParticipants[home];
-        const awayTeam =
-          away === extendedN - 1
-            ? extendedParticipants[extendedN - 1]
-            : extendedParticipants[away];
+        const homeTeam = home === extendedN - 1 ? extendedParticipants[extendedN - 1] : extendedParticipants[home];
+        const awayTeam = away === extendedN - 1 ? extendedParticipants[extendedN - 1] : extendedParticipants[away];
 
-        // Skip matches involving null (bye)
         if (homeTeam && awayTeam && homeTeam !== awayTeam) {
-          roundFixtures.push({
-            tournamentId,
-            matchday,
-            homeTeam,
-            awayTeam,
-          });
+          roundFixtures.push({ tournamentId, matchday, homeTeam, awayTeam });
         }
       }
-
       fixtures.push(...roundFixtures);
       matchday++;
     }
@@ -161,32 +130,26 @@ const generateSingleRoundRobinFixtures = (participants, tournamentId) => {
   return fixtures;
 };
 
-// Double Round-Robin Algorithm
 const generateDoubleRoundRobinFixtures = (participants, tournamentId) => {
-  // Generate first round-robin
-  const firstRound = generateSingleRoundRobinFixtures(
-    participants,
-    tournamentId
-  );
-
-  // Generate second round-robin (reverse home/away)
+  const firstRound = generateSingleRoundRobinFixtures(participants, tournamentId);
   const maxMatchday = Math.max(...firstRound.map((f) => f.matchday));
+
   const secondRound = firstRound.map((fixture) => ({
     ...fixture,
     matchday: fixture.matchday + maxMatchday,
-    homeTeam: fixture.awayTeam, // Swap home and away
+    homeTeam: fixture.awayTeam,
     awayTeam: fixture.homeTeam,
   }));
 
   return [...firstRound, ...secondRound];
 };
 
-// Get tournament fixtures with details
+// ================================
+// FIXTURE QUERIES
+// ================================
 export const getTournamentFixtures = async (tournamentId) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
-  if (!tournament) {
-    throw new NotFoundException("Tournament not found");
-  }
+  if (!tournament) throw new NotFoundException("Tournament not found");
 
   const fixtures = await fixtureDb.getTournamentFixtures(tournamentId);
 
@@ -197,30 +160,26 @@ export const getTournamentFixtures = async (tournamentId) => {
       currentMatchday: tournament.currentMatchday,
       totalMatchdays: tournament.totalMatchdays,
     },
-    fixtures,
     fixturesCount: fixtures.length,
+    fixtures,
   };
 };
 
-// Get fixtures for specific matchday
 export const getMatchdayFixtures = async ({ tournamentId, matchday }) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
-  if (!tournament) {
-    throw new NotFoundException("Tournament not found");
-  }
+  if (!tournament) throw new NotFoundException("Tournament not found");
 
   const fixtures = await fixtureDb.getMatchdayFixtures(tournamentId, matchday);
   const stats = await fixtureDb.getMatchdayStats(tournamentId, matchday);
 
   return {
+    tournament: { id: tournament._id, name: tournament.name },
     matchday,
-    tournament: tournament.name,
     fixtures,
     stats,
   };
 };
 
-// Get team's fixtures
 export const getTeamFixtures = async ({ tournamentId, teamId }) => {
   const fixtures = await fixtureDb.getTeamFixtures(tournamentId, teamId);
 
@@ -237,67 +196,49 @@ export const getTeamFixtures = async ({ tournamentId, teamId }) => {
   };
 };
 
-// Regenerate fixtures (admin only)
+// ================================
+// ADMIN OPERATIONS
+// ================================
 export const regenerateFixtures = async ({ tournamentId, userId }) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
-  if (!tournament) {
-    throw new NotFoundException("Tournament not found");
-  }
+  if (!tournament) throw new NotFoundException("Tournament not found");
 
-  // Check permissions
   await membershipService.assertIsAdmin({
     userId,
     groupId: tournament.groupId._id || tournament.groupId,
   });
 
-  // Can't regenerate if tournament has started
   if (tournament.status === "ongoing") {
-    throw new BadRequestError(
-      "Cannot regenerate fixtures for ongoing tournament"
-    );
+    throw new BadRequestError("Cannot regenerate fixtures for ongoing tournament");
   }
 
-  // Delete existing fixtures
   await fixtureDb.deleteAllFixtures(tournamentId);
 
-  // Reset tournament status
   await tournamentDb.updateTournament(tournamentId, {
     status: "registration",
     currentMatchday: 0,
     totalMatchdays: 0,
   });
 
-  // Generate new fixtures
   return await generateTournamentFixtures({ tournamentId, userId });
 };
 
-// Start tournament (moves from upcoming to ongoing)
 export const startTournament = async ({ tournamentId, userId }) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
-  if (!tournament) {
-    throw new NotFoundException("Tournament not found");
-  }
+  if (!tournament) throw new NotFoundException("Tournament not found");
 
-  // Check permissions
   await membershipService.assertIsAdmin({
     userId,
     groupId: tournament.groupId._id || tournament.groupId,
   });
 
-  // Check if fixtures exist
   const fixturesExist = await fixtureDb.fixturesExist(tournamentId);
-  if (!fixturesExist) {
-    throw new BadRequestError("Generate fixtures before starting tournament");
-  }
+  if (!fixturesExist) throw new BadRequestError("Generate fixtures before starting tournament");
 
-  // Update tournament status
   await tournamentDb.updateTournament(tournamentId, {
     status: "ongoing",
     startDate: new Date(),
   });
 
-  return {
-    message: "Tournament started successfully",
-    status: "ongoing",
-  };
+  return { message: "Tournament started successfully", status: "ongoing" };
 };

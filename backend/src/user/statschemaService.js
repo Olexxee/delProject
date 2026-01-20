@@ -1,4 +1,4 @@
-import UserStats from "./userStatSchema";
+import UserStats from "./userStatSchema.js";
 
 export const createUserStats = async ({
   user,

@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import dotenv from "dotenv";
 import configService from "./classes/configClass.js";
 
 export default async function connectDB() {
