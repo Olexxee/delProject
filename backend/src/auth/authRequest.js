@@ -39,14 +39,14 @@ const resetPasswordSchema = joi.object({
     }),
 });
 
-const updateUserProfile = joi.object({
+const updateUserProfileSchema = joi.object({
   name: joi.string(),
   bio: joi.string(),
 });
 
 export {
   loginSchema,
-  updateUserProfile,
+  updateUserProfileSchema,
   verificationSchema,
   changePasswordSchema,
   forgotPasswordSchema,

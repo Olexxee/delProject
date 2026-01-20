@@ -5,6 +5,7 @@ import compression from "compression";
 import cookieParser from "cookie-parser";
 import path from "path";
 import { createServer } from "http";
+import configRouter from "../routes/configRoute.js";
 
 import configService from "../lib/classes/configClass.js";
 
@@ -67,6 +68,7 @@ app.use(`${apiBase}/profile`, userRoute);
 // app.use(`${apiBase}/posts`, postRoute);
 // app.use(`${apiBase}/stats`, statRoute);
 app.use(`${apiBase}/groups`, groupRouter);
+app.use(`${apiBase}/config`, configRouter);
 app.use(`${apiBase}/membership`, membershipRouter);
 app.use(`${apiBase}/tournaments`, tournamentRouter);
 app.use(`${apiBase}/participants`, participantRouter);

@@ -1,18 +1,18 @@
 import * as authService from "./authService.js";
 import { ValidationException, BadRequestError } from "../lib/classes/errorClasses.js";
 import { ValidatorClass } from "../lib/classes/validatorClass.js";
+import path from "path";
+import fs from "fs";
 import {
   registerSchema,
   loginSchema,
-  updateUserProfile,
+  updateUserProfileSchema,
   verificationSchema,
   changePasswordSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
 } from "./authRequest.js";
 import { asyncWrapper } from "../lib/utils.js";
-import path from "path";
-import fs from "fs";
 
 const validator = new ValidatorClass();
 
@@ -27,6 +27,7 @@ export const signUp = asyncWrapper(async (req, res) => {
 });
 
 export const login = asyncWrapper(async (req, res) => {
+  console.log()
   const { errors, value } = validator.validate(loginSchema, req.body);
   if (errors) throw new ValidationException(errors);
 
@@ -34,15 +35,15 @@ export const login = asyncWrapper(async (req, res) => {
   return res.status(200).json(authResponse);
 });
 
-/* ================= USER ================= */
+/* ================= USER PROFILE ================= */
 
 export const getUser = asyncWrapper(async (req, res) => {
   const user = await authService.getUserProfile(req.user.email);
   return res.status(200).json({ user });
 });
 
-export const updateUserProfileController = asyncWrapper(async (req, res) => {
-  const { error, value } = updateUserProfile.validate(req.body);
+export const updateUserProfile = asyncWrapper(async (req, res) => {
+  const { error, value } = updateUserProfileSchema.validate(req.body);
   if (error) throw new BadRequestError(error.details[0].message);
 
   const profilePicture = req.file
@@ -59,6 +60,7 @@ export const updateUserProfileController = asyncWrapper(async (req, res) => {
     const user = await authService.updateUserProfile(payload);
     return res.status(200).json({ user });
   } catch (err) {
+    // Delete uploaded file if update fails
     if (req.file) {
       fs.unlink(
         path.join("uploads", "profile_pictures", req.file.filename),
@@ -95,7 +97,6 @@ export const logout = asyncWrapper(async (req, res) => {
   return res.status(200).json({ success: true });
 });
 
-
 /* ================= PASSWORD MANAGEMENT ================= */
 
 export const changePassword = asyncWrapper(async (req, res) => {
@@ -103,7 +104,7 @@ export const changePassword = asyncWrapper(async (req, res) => {
   if (error) throw new BadRequestError(error.details[0].message);
 
   const userId = req.user._id;
-  const updatedUser = await authService.changePassword(userId, value);
+  await authService.changePassword(userId, value);
 
   return res.status(200).json({ message: "Password changed successfully" });
 });

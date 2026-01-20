@@ -11,7 +11,7 @@ console.log("PORT:", configService.getOrThrow("PORT"));
 console.log("JWT:", configService.getOrThrow("JWT_SECRET").slice(0, 6) + "...");
 console.log("COOKIE:", configService.getOrThrow("COOKIE_SECRET").slice(0, 6) + "...");
 console.log("MONGO_URI OK:", !!configService.getOrThrow("MONGO_URI"));
-
+console.log("jwt expire in:", configService.getOrThrow("JWT_EXPIRE_IN"));
 
 (() => {
   try {
