@@ -27,7 +27,7 @@ export const signUp = asyncWrapper(async (req, res) => {
 });
 
 export const login = asyncWrapper(async (req, res) => {
-  console.log()
+  console.log("Login request body:", req.body);
   const { errors, value } = validator.validate(loginSchema, req.body);
   if (errors) throw new ValidationException(errors);
 
@@ -130,3 +130,35 @@ export const resetPassword = asyncWrapper(async (req, res) => {
     message: "Password has been reset successfully",
   });
 });
+
+export const saveDeviceToken = async (req, res) => {
+  const userId = req.user.id; // from JWT middleware
+  const { deviceToken } = req.body;
+
+  if (!deviceToken)
+    return res.status(400).json({ message: "No device token provided" });
+
+  try {
+    const updatedUser = await authService.addDeviceToken(userId, deviceToken);
+    res.json({ message: "Device token saved", deviceTokens: updatedUser.deviceTokens });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to save device token" });
+  }
+};
+
+export const removeDeviceToken = async (req, res) => {
+  const userId = req.user.id;
+  const { deviceToken } = req.body;
+
+  if (!deviceToken)
+    return res.status(400).json({ message: "No device token provided" });
+
+  try {
+    const updatedUser = await authService.removeDeviceToken(userId, deviceToken);
+    res.json({ message: "Device token removed", deviceTokens: updatedUser.deviceTokens });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to remove device token" });
+  }
+};

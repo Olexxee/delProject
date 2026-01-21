@@ -60,6 +60,11 @@ const UserSchema = new Schema(
       enum: ["admin", "user", "superadmin"],
       default: "user",
     },
+     deviceTokens: {
+    type: [String], // Array to store multiple device tokens (iOS, Android, Web)
+    default: [],
+  },
+  aesKey: { type: String, required: true },
 
     // === Group-related Metrics ===
     groupsCreatedCount: {

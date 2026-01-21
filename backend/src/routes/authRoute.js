@@ -10,6 +10,7 @@ import {
   forgotPassword,
   resetPassword,
   logout,
+  saveDeviceToken, removeDeviceToken
 } from "../auth/authController.js";
 
 const router = Router();
@@ -21,6 +22,10 @@ router.post("/signin", login);
 // ================= USER =================
 router.get("/user", authMiddleware, getUser);
 router.patch("/change-password", authMiddleware, changePassword);
+
+// ================= DEVICE TOKEN =================
+router.post("/save-device-token", authMiddleware, saveDeviceToken);
+router.post("/remove-device-token", authMiddleware, removeDeviceToken);
 
 // ================= VERIFICATION =================
 router.patch("/send-verification-email", authMiddleware, sendVerificationEmail);

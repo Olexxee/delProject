@@ -42,8 +42,6 @@ export const getUserProfile = async (userId) => {
 };
 
 
-
-
 export const findAndUpdateUserById = async (id, updateData) => {
   return await User.findByIdAndUpdate(id, updateData, {
     new: true,

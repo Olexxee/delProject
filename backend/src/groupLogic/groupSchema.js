@@ -9,48 +9,61 @@ const GroupSchema = new Schema(
       trim: true,
       unique: true,
     },
+
     description: {
       type: String,
       default: "",
     },
+
     avatar: {
       type: String,
       default: "",
     },
+
     privacy: {
       type: String,
       enum: ["public", "private", "protected"],
       default: "public",
     },
+
     joinCode: {
       type: String,
       sparse: true,
       unique: true,
     },
+
     createdBy: {
       type: Types.ObjectId,
       ref: "User",
+      required: true,
     },
+
     isActive: {
       type: Boolean,
       default: true,
     },
+
     totalMembers: {
       type: Number,
       default: 1,
+    },
+
+    // ✅ Tournament aggregates (denormalized)
+    tournamentsCount: {
+      type: Number,
+      default: 0,
+    },
+
+    activeTournamentsCount: {
+      type: Number,
+      default: 0,
+    },
+
+    lastTournamentAt: {
+      type: Date,
     },
   },
   { timestamps: true }
 );
 
-// Generate a unique join code before saving the group
-GroupSchema.pre("save", function (next) {
-  if (!this.joinCode) {
-    this.joinCode = nanoid(8);
-  }
-  next();
-});
-
-const Group = model("Group", GroupSchema);
-
-export default Group;
+export default model("Group", GroupSchema);
