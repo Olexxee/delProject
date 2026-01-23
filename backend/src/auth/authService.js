@@ -4,9 +4,10 @@ import bcrypt from "bcrypt";
 import jwtService from "../lib/classes/jwtClass.js";
 import { serializeUser } from "../lib/serializeUser.js";
 import crypto from "crypto";
-import { sendNotification } from "../notifications/notificationService.js";
-import { NotificationTypes } from "../notifications/NotificationTypes.js";
-import { getEmailTemplate } from "../notifications/emailTemplates.js";
+import logger  from "../lib/logger.js"
+import { sendNotification } from "../logic/notifications/notificationService.js";
+import { NotificationTypes } from "../logic/notifications/notificationTypes.js";
+import { getEmailTemplate } from "../logic/notifications/emailTemplates.js";
 import configService from "../lib/classes/configClass.js";
 
 /* ================= AUTHENTICATION ================= */

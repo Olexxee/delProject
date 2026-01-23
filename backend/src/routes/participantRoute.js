@@ -1,5 +1,5 @@
 import { Router } from "express";
-import authMiddleware from "../middlewares/authenticationMdw.js";
+import {authMiddleware} from "../middlewares/authenticationMdw.js";
 import { requireGroupAdmin } from "../admin/adminMiddleware.js";
 import {
   registerForTournament,

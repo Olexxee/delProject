@@ -2,22 +2,74 @@ import mongoose from "mongoose";
 
 export const messageSchema = new mongoose.Schema(
   {
-    chatRoom: { type: mongoose.Schema.Types.ObjectId, ref: "ChatRoom" },
-    sender: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    chatRoom: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ChatRoom",
+      required: true,
+      index: true,
+    },
 
-    encryptedContent: String,
-    iv: String,
-    authTag: String,
+    sender: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-    media: [{ type: mongoose.Schema.Types.ObjectId, ref: "Media" }],
+    encryptedContent: {
+      type: String,
+      required: true,
+    },
 
-    deliveredTo: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    iv: {
+      type: String,
+      required: true,
+    },
 
-    deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    isDeleted: { type: Boolean, default: false },
+    authTag: {
+      type: String,
+      required: true,
+    },
+
+    media: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Media",
+      },
+    ],
+
+    deliveredTo: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    readBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    deletedFor: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
+
+// Indexes for performance
+messageSchema.index({ chatRoom: 1, createdAt: -1 });
+messageSchema.index({ chatRoom: 1, deletedFor: 1 });
 
 export const Message = mongoose.model("Message", messageSchema);

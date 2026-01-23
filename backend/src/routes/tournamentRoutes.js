@@ -9,7 +9,7 @@ import {
   startTournament,
   getTournamentTable,
 } from "../tournamentLogic/tournamentController.js";
-import authMiddleware from "../middlewares/authenticationMdw.js";
+import {authMiddleware} from "../middlewares/authenticationMdw.js";
 import { requireGroupAdmin } from "../admin/adminMiddleware.js";
 
 const tournamentRouter = Router();

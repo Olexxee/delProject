@@ -8,7 +8,7 @@ cloudinary.config({
   api_secret: configService.getOrThrow("CLOUDINARY_API_SECRET"),
 });
 
-console.log(cloudinary.config().cloud_name); // should print your cloud name
+console.log(cloudinary.config().cloud_name);
 
 logger.info("☁️ Cloudinary initialized");
 

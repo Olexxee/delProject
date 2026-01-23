@@ -1,8 +1,8 @@
 import * as chatRoomService from "./chatRoomService.js";
-import Message from "../../models/messageSchema.js";
+import {Message} from "../../models/messageSchema.js";
 import { ensureChatAccess } from "./chatGuard.js";
 import { processUploadedMedia } from "../../middlewares/processUploadedImages.js";
-import logger from "../../lib/logger.js";
+import { encrypt, decrypt } from "../../lib/encryption.js";
 import {
   BadRequestError,
   NotFoundException,
@@ -15,7 +15,8 @@ import {
 } from "./messageStateMachine.js";
 
 /**
- * Get or create chat room
+ * Get or create a chat room based on context (e.g., 'connection', 'group', 'event')
+ * Unifies logic from connectionChatService and chatService
  */
 export const getOrCreateChatRoom = async ({
   contextType,
@@ -30,7 +31,7 @@ export const getOrCreateChatRoom = async ({
 };
 
 /**
- * Get messages
+ * Fetch messages with standardized pagination and access control
  */
 export const getMessages = async ({
   chatRoomId,
@@ -38,9 +39,12 @@ export const getMessages = async ({
   limit = 50,
   skip = 0,
 }) => {
+  const room = await ChatRoom.findById(chatRoomId).select("+aesKey");
+  if (!room) throw new Error("Chat room not found");
+
   await ensureChatAccess(userId, chatRoomId);
 
-  return Message.find({
+  const messages = await Message.find({
     chatRoom: chatRoomId,
     deletedFor: { $ne: userId },
     isDeleted: { $ne: true },
@@ -49,56 +53,92 @@ export const getMessages = async ({
     .skip(skip)
     .limit(limit)
     .populate("sender", "username firstName lastName profilePicture");
+
+  return messages.map((msg) => {
+    let decryptedContent = null;
+
+    if (msg.encryptedContent && msg.iv && msg.authTag) {
+      try {
+        decryptedContent = decrypt(
+          msg.encryptedContent,
+          room.aesKey,
+          msg.iv,
+          msg.authTag
+        );
+      } catch (err) {
+        decryptedContent = "[Unable to decrypt message]";
+      }
+    }
+
+    return {
+      ...msg.toObject(),
+      content: decryptedContent,
+      encryptedContent: undefined,
+      iv: undefined,
+      authTag: undefined,
+    };
+  });
 };
 
+
 /**
- * Create message with optional media
+ * Unified message creation for REST, Sockets, and Media uploads
  */
 export const createMessage = async ({
   chatRoomId,
   senderId,
   content,
-  files = [],
-  requestContext,
+  mediaIds = [],
+  broadcaster = null,
 }) => {
-  if (!content && files.length === 0)
-    throw new BadRequestError("Message must have content or media");
+  if (!content?.trim() && mediaIds.length === 0) {
+    throw new Error("Message must have content or media");
+  }
+
+  const room = await ChatRoom.findById(chatRoomId).select("+aesKey");
+  if (!room) throw new Error("Chat room not found");
 
   await ensureChatAccess(senderId, chatRoomId);
 
-  let mediaIds = [];
-  if (files.length > 0) {
-    const mediaDocuments = await processUploadedMedia(requestContext, "chat", {
-      resizeWidth: 1200,
-      resizeHeight: 1200,
-      quality: 85,
-      minCount: 0,
-    });
-    mediaIds = mediaDocuments.map((doc) => doc._id);
-    logger.info(
-      `[Chat] User ${senderId} uploaded ${mediaIds.length} media file(s)`
-    );
+  let encryptedPayload = null;
+
+  if (content?.trim()) {
+    encryptedPayload = encrypt(content.trim(), room.aesKey);
   }
 
   const message = await Message.create({
     chatRoom: chatRoomId,
     sender: senderId,
-    content: content?.trim() || "",
+
+    encryptedContent: encryptedPayload?.cipherText || null,
+    iv: encryptedPayload?.iv || null,
+    authTag: encryptedPayload?.authTag || null,
+
     media: mediaIds,
+
     deliveredTo: [senderId],
     readBy: [senderId],
   });
 
-  return message.populate(
+  room.lastMessageAt = new Date();
+  await room.save();
+
+  const populated = await message.populate(
     "sender",
     "username firstName lastName profilePicture"
   );
+
+  if (broadcaster) {
+    broadcaster.broadcastMessage(chatRoomId, populated);
+  }
+
+  return populated;
 };
 
 /**
- * Mark messages delivered
+ * Mark messages as delivered
  */
-export const markDelivered = async ({ chatRoomId, userId }) => {
+export const markDelivered = async ({ chatRoomId, userId, broadcaster = null }) => {
   await ensureChatAccess(userId, chatRoomId);
 
   const result = await Message.updateMany(
@@ -110,13 +150,17 @@ export const markDelivered = async ({ chatRoomId, userId }) => {
     { $addToSet: { deliveredTo: userId } }
   );
 
+  if (broadcaster && result.modifiedCount > 0) {
+    broadcaster.notifyDelivered(chatRoomId, userId);
+  }
+
   return result;
 };
 
 /**
- * Mark messages read
+ * Mark messages as read
  */
-export const markRead = async ({ chatRoomId, userId }) => {
+export const markRead = async ({ chatRoomId, userId, broadcaster = null }) => {
   await ensureChatAccess(userId, chatRoomId);
 
   const result = await Message.updateMany(
@@ -128,18 +172,21 @@ export const markRead = async ({ chatRoomId, userId }) => {
     { $addToSet: { readBy: userId, deliveredTo: userId } }
   );
 
+  if (broadcaster && result.modifiedCount > 0) {
+    broadcaster.notifyRead(chatRoomId, userId);
+  }
+
   return result;
 };
 
 /**
- * Soft delete message
+ * Soft delete (remove from user's view)
  */
 export const softDeleteMessage = async ({ messageId, userId }) => {
   const message = await Message.findById(messageId);
   if (!message) throw new NotFoundException("Message not found");
-  if (!canSoftDelete(message, userId)) return message;
-
-  await ensureChatAccess(userId, message.chatRoom);
+  
+  if (!canSoftDelete(message, userId)) return message; //
 
   await Message.updateOne(
     { _id: messageId },
@@ -150,58 +197,24 @@ export const softDeleteMessage = async ({ messageId, userId }) => {
 };
 
 /**
- * Delete message for everyone (sender/admin)
+ * Hard delete (Delete for everyone)
  */
-export const deleteMessageForEveryone = async ({ user, messageId }) => {
+export const deleteMessageForEveryone = async ({ user, messageId, broadcaster = null }) => {
   const message = await Message.findById(messageId);
   if (!message) throw new NotFoundException("Message not found");
 
-  if (!canDeleteForEveryone(message, user))
-    throw new ForbiddenError("Not authorized");
-
-  await ensureChatAccess(user._id.toString(), message.chatRoom);
+  if (!canDeleteForEveryone(message, user)) {
+    throw new ForbiddenError("Not authorized to delete this message"); //
+  }
 
   await Message.updateOne(
     { _id: messageId },
     { isDeleted: true, content: "This message was deleted", media: [] }
   );
 
+  if (broadcaster) {
+    broadcaster.notifyDeletedForAll(message.chatRoom.toString(), messageId);
+  }
+
   return message;
-};
-
-/**
- * Get user chat rooms
- */
-export const getUserChatRooms = async ({ userId, limit = 20, skip = 0 }) => {
-  const chatRooms = await chatRoomService.getUserChatRooms({
-    userId,
-    limit,
-    skip,
-  });
-  return chatRooms;
-};
-
-/**
- * Fetch messages since a specific timestamp (offline sync)
- */
-export const getMessagesSince = async ({
-  chatRoomId,
-  userId,
-  since,
-  limit = 50,
-}) => {
-  await ensureChatAccess(userId, chatRoomId);
-
-  const query = {
-    chatRoom: chatRoomId,
-    deletedFor: { $ne: userId },
-    isDeleted: { $ne: true },
-  };
-
-  if (since) query.createdAt = { $gt: new Date(since) };
-
-  return Message.find(query)
-    .sort({ createdAt: 1 }) // chronological
-    .limit(limit)
-    .populate("sender", "username firstName lastName profilePicture");
 };

@@ -1,0 +1,10 @@
+[2026-01-22 04:50:08] ERROR: ❌ Authentication failed:
+[2026-01-22 04:50:08] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-22 04:56:13] ERROR: In-app channel error: No active WebSocket connection for recipient
+[2026-01-22 04:56:13] ERROR: Email channel error: No template for type groupCreated
+[2026-01-22 04:56:13] ERROR: Email send failed:
+[2026-01-22 05:51:48] ERROR: In-app channel error: No active WebSocket connection for recipient
+[2026-01-22 05:51:48] ERROR: Email channel error: No template for type groupCreated
+[2026-01-22 05:51:48] ERROR: Email send failed:
+[2026-01-22 07:14:17] ERROR: Email channel error: No template for type groupCreated
+[2026-01-22 07:14:17] ERROR: [Notification] Email failed for 696f7dacc0b566ce76cfe822:

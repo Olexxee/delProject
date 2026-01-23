@@ -6,8 +6,9 @@ import cookieParser from "cookie-parser";
 import path from "path";
 import { createServer } from "http";
 import configRouter from "../routes/configRoute.js";
-
+import { initSocketServer } from "../logic/socket/index.js";
 import configService from "../lib/classes/configClass.js";
+import { setIo } from "../logic/chats/chatController.js";
 
 // Routes
 import { authRoute } from "../routes/authRoute.js";
@@ -55,6 +56,11 @@ app.use(cookieParser(configService.getOrThrow("COOKIE_SECRET")));
 
 // Serve uploaded files
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+// Initialize socket.io
+export const io = initSocketServer(server);
+setIo(io);
+
 
 // -------------------------
 // API VERSIONING

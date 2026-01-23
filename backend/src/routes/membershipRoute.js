@@ -7,7 +7,7 @@ import {
   updateMembership,
   banUser,
 } from "../groupLogic/membershipController.js";
-import authMiddleware from "../middlewares/authenticationMdw.js";
+import {authMiddleware} from "../middlewares/authenticationMdw.js";
 import {
   requireGroupAdmin,
   requirePlatformGroupAdmin,

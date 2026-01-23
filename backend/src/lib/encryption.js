@@ -1,38 +1,68 @@
-// utils/encryption.js
 import crypto from "crypto";
 
 const ALGORITHM = "aes-256-gcm";
+const KEY_ENCODING = "hex";
+const IV_LENGTH = 12; // Recommended for GCM
 
 /**
- * Encrypts plaintext with a key
- * Returns { cipherText, iv, authTag } for decryption
+ * Encrypt plaintext using AES-256-GCM
+ * @param {string} plaintext
+ * @param {string} keyHex - 32-byte key in hex format
+ * @returns {{ cipherText: string, iv: string, authTag: string }}
  */
-export const encrypt = (plaintext, key) => {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(key, "hex"), iv);
+export const encrypt = (plaintext, keyHex) => {
+  if (!plaintext) throw new Error("Plaintext is required");
+  if (!keyHex) throw new Error("Encryption key is required");
 
-  let encrypted = cipher.update(plaintext, "utf8", "hex");
-  encrypted += cipher.final("hex");
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const key = Buffer.from(keyHex, KEY_ENCODING);
 
-  const authTag = cipher.getAuthTag().toString("hex");
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 
-  return { cipherText: encrypted, iv: iv.toString("hex"), authTag };
+  const encryptedBuffer = Buffer.concat([
+    cipher.update(plaintext, "utf8"),
+    cipher.final(),
+  ]);
+
+  return {
+    cipherText: encryptedBuffer.toString(KEY_ENCODING),
+    iv: iv.toString(KEY_ENCODING),
+    authTag: cipher.getAuthTag().toString(KEY_ENCODING),
+  };
 };
 
 /**
- * Decrypts ciphertext with a key
+ * Decrypt AES-256-GCM encrypted payload
+ * @param {string} cipherText
+ * @param {string} keyHex
+ * @param {string} ivHex
+ * @param {string} authTagHex
+ * @returns {string}
  */
-export const decrypt = (cipherText, key, ivHex, authTagHex) => {
-  const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(key, "hex"), Buffer.from(ivHex, "hex"));
-  decipher.setAuthTag(Buffer.from(authTagHex, "hex"));
+export const decrypt = (cipherText, keyHex, ivHex, authTagHex) => {
+  if (!cipherText || !ivHex || !authTagHex) {
+    throw new Error("Invalid encrypted payload");
+  }
 
-  let decrypted = decipher.update(cipherText, "hex", "utf8");
-  decrypted += decipher.final("utf8");
+  const key = Buffer.from(keyHex, KEY_ENCODING);
+  const iv = Buffer.from(ivHex, KEY_ENCODING);
+  const authTag = Buffer.from(authTagHex, KEY_ENCODING);
 
-  return decrypted;
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+
+  const decryptedBuffer = Buffer.concat([
+    decipher.update(Buffer.from(cipherText, KEY_ENCODING)),
+    decipher.final(),
+  ]);
+
+  return decryptedBuffer.toString("utf8");
 };
 
 /**
- * Generates a secure random 32-byte key for AES-256
+ * Generate a secure random AES-256 key (hex encoded)
+ * @returns {string}
  */
-export const generateKey = () => crypto.randomBytes(32).toString("hex");
+export const generateKey = () => {
+  return crypto.randomBytes(32).toString(KEY_ENCODING);
+};

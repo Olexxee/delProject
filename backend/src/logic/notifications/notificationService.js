@@ -1,152 +1,101 @@
+// notificationService.js
 import logger from "../../lib/logger.js";
 import * as notificationDb from "../../models/notificationSchemaService.js";
-import { pushChannel } from "./pushChannel.js";
 import { emailChannel } from "./emailChannel.js";
-import { inAppChannel } from "./inAppChannel.js";
-import { channelMap } from "./channelMap.js";
+import { pushChannel } from "./pushChannel.js";
+import { getSocketsByUserId } from "../socket/socketRegistry.js";
+import { io } from "../../server/serverConfig.js";
 
 /**
- * Unified notification service
+ * Send notification to a user via one or more channels.
+ * Only sends in-app if the user has active sockets.
  */
 export const sendNotification = async ({
-  recipient,
-  sender,
-  type,
+  recipient,        // User ID
+  sender = "system", // Optional sender
+  type,             // Notification type
   title,
   message,
-  meta = {},
-  channels, // optional override
-  attachments = [],
-  inlineImages = [],
-  enableFallback = false, // try email if push fails
+  channels = ["inApp"], // ["inApp", "email", "push"]
+  meta = {},            // Additional payload or email info
 }) => {
-  // Normalize sender
-  let formattedSender = null;
+  const activeChannels = [];
 
-  // Explicit system sender
-  if (sender === "system") {
-    formattedSender = { kind: "System", item: null };
-  }
-  // ObjectId or string userId
-  else if (typeof sender === "string") {
-    formattedSender = { kind: "User", item: sender };
-  }
-  // Mongoose doc or raw ObjectId
-  else if (sender?._id) {
-    formattedSender = { kind: "User", item: sender._id };
-  }
-  // Already formatted
-  else if (sender?.kind) {
-    formattedSender = sender;
-  }
-
-  // Persist notification in DB
-  const notification = await notificationDb.createNotification({
-    recipient,
-    sender: formattedSender,
-    type,
-    title,
-    message,
-    meta,
-  });
-
-  // Resolve channels: use override → channel map → fallback
-  const resolvedChannels = channels ||
-    channelMap[type] || ["inApp", "push", "email"];
-
-  // Dispatch to each channel
-  for (const ch of resolvedChannels) {
-    if (ch === "inApp") {
-      try {
-        await inAppChannel.send({ recipient, notification });
-      } catch (err) {
-        logger.warn(
-          `In-app delivery failed for recipient ${recipient}: ${err.message}`
-        );
-        // Do NOT throw — just continue
-      }
-    }
-
-    if (ch === "push") {
-      const tokens =
-        meta.deviceTokens ||
-        notification.recipient?.deviceTokens ||
-        meta.deviceToken ||
-        notification.recipient?.deviceTokens || 
-        [];
-
-      if (tokens) {
-        try {
-          await pushChannel.send({
-            recipientToken: tokens,
-            title,
-            message,
-            meta: { type, ...meta },
-          });
-        } catch (err) {
-          logger.error("Push failed:", err.message);
-          console.log(err.message);
-
-          if (enableFallback) {
-            const email = meta.email || notification.recipient?.email;
-            if (email) {
-              try {
-                await emailChannel.send({
-                  to: email,
-                  type,
-                  payload: { title, message },
-                  attachments,
-                  inlineImages,
-                  meta,
-                });
-              } catch (emailErr) {
-                logger.error("Email fallback failed:", emailErr.message);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    if (ch === "email") {
-      const email = meta.email || notification.recipient?.email;
-      if (email) {
-        try {
-          await emailChannel.send({
-            to: email,
-            type,
-            payload: { title, message },
-            attachments,
-            inlineImages,
-            meta,
-          });
-        } catch (err) {
-          logger.error("Email send failed:", err.message);
-        }
-      }
+  // ---------------------------
+  // 1️⃣ In-app (WebSocket) channel
+  // ---------------------------
+  if (channels.includes("inApp")) {
+    const sockets = getSocketsByUserId(recipient);
+    if (sockets.length > 0) {
+      sockets.forEach((socketId) => {
+        io.to(socketId).emit(type, { sender, title, message, meta });
+      });
+      logger.info(`[Notification] Sent ${type} to user ${recipient} via in-app`);
+      activeChannels.push("inApp");
+    } else {
+      logger.info(`[Notification] User ${recipient} offline, skipping in-app`);
     }
   }
 
-  return notification;
+  // ---------------------------
+  // 2️⃣ Email channel
+  // ---------------------------
+  if (channels.includes("email") && meta?.email) {
+    try {
+      await emailChannel.send({ to: meta.email, type, payload: meta.payload });
+      logger.info(`[Notification] Sent ${type} to user ${recipient} via email`);
+      activeChannels.push("email");
+    } catch (err) {
+      logger.error(`[Notification] Email failed for ${recipient}:`, err.message);
+    }
+  }
+
+  // ---------------------------
+  // 3️⃣ Push notification channel
+  // ---------------------------
+  if (channels.includes("push") && Array.isArray(meta?.deviceTokens) && meta.deviceTokens.length > 0) {
+    try {
+      await pushChannel.send({ tokens: meta.deviceTokens, title, body: message, payload: meta.payload });
+      logger.info(`[Notification] Sent ${type} to user ${recipient} via push`);
+      activeChannels.push("push");
+    } catch (err) {
+      logger.error(`[Notification] Push failed for ${recipient}:`, err.message);
+    }
+  }
+
+  // ---------------------------
+  // 4️⃣ Persist notification in DB
+  // ---------------------------
+  try {
+    await notificationDb.createNotification({
+      recipient,
+      sender,
+      type,
+      title,
+      message,
+      channels: activeChannels,
+      meta,
+    });
+  } catch (err) {
+    logger.error(`[Notification] Failed to persist notification for ${recipient}:`, err.message);
+  }
+
+  return { success: activeChannels.length > 0, activeChannels };
 };
 
 /**
- * Get user notifications
+ * Fetch notifications for a user
  */
 export const getUserNotifications = async (userId, options = {}) => {
   return notificationDb.findNotificationsByRecipient(userId, options);
 };
 
 /**
- * Mark notification as read
+ * Mark a single notification as read
  */
 export const markNotificationRead = async (notificationId) => {
-  const notification = await notificationDb.markNotificationRead(
-    notificationId
-  );
-  if (!notification) {
-    throw new Error("Notification not found");
-  }
+  const notification = await notificationDb.markNotificationRead(notificationId);
+  if (!notification) throw new Error("Notification not found");
   return notification;
 };
 
@@ -161,11 +110,7 @@ export const markAllNotificationsRead = async (userId) => {
  * Delete a notification
  */
 export const deleteNotification = async (notificationId) => {
-  const notification = await notificationDb.deleteNotificationById(
-    notificationId
-  );
-  if (!notification) {
-    throw new Error("Notification not found");
-  }
+  const notification = await notificationDb.deleteNotificationById(notificationId);
+  if (!notification) throw new Error("Notification not found");
   return notification;
 };

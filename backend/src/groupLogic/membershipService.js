@@ -1,5 +1,6 @@
 import * as membershipService from "./membershipSchemaService.js";
 import * as userService from "../user/userService.js";
+import mongoose from "mongoose";
 import Group from "./groupSchema.js";
 import * as userStats from "../user/statschemaService.js";
 import * as groupDb from "./gSchemaService.js";
@@ -13,38 +14,61 @@ import {
 export const createMembership = async (payload) => {
   const { userId, groupId, roleInGroup = "member" } = payload;
 
-  const existing = await membershipService.findMembership({ userId, groupId });
-  if (existing) return existing;
+ const session = await mongoose.startSession();
+session.startTransaction();
 
-  const membership = await membershipService.createMembership({
-    userId,
-    groupId,
-    roleInGroup,
-    status: "active",
-    joinedAt: new Date(),
-  });
-
-  const group = await groupDb.findGroupById(groupId);
+try {
+  const group = await groupDb.findGroupById(groupId, session);
   if (!group) throw new NotFoundException("Group not found");
 
-  await groupDb.updateGroup(groupId, { $inc: { totalMembers: 1 } });
+  const existing = await membershipService.findMembership(
+    { userId, groupId },
+    session
+  );
+  if (existing) {
+    await session.commitTransaction();
+    return existing;
+  }
 
-  await userService.findAndUpdateUserById(userId, {
-    $addToSet: { groups: group.name },
-  });
+  const membership = await membershipService.createMembership(
+    {
+      userId,
+      groupId,
+      roleInGroup,
+      status: "active",
+    },
+    session
+  );
 
-  // ✅ Create group-wide user stats (tournament will be null)
-  try {
-    await userStats.createUserStats({
+  await groupDb.updateGroup(
+    groupId,
+    { $inc: { totalMembers: 1 } },
+    session
+  );
+
+  await userService.findAndUpdateUserById(
+    userId,
+    { $addToSet: { groups: group.name } },
+    session
+  );
+
+  await userStats.createUserStats(
+    {
       user: userId,
       group: groupId,
       tournamentsPlayedin: null,
-    });
-  } catch (err) {
-    if (err.code !== 11000) {
-      console.error("Error creating user stats:", err);
-    }
-  }
+    },
+    session
+  );
+
+  await session.commitTransaction();
+  return membership;
+} catch (err) {
+  await session.abortTransaction();
+  throw err;
+} finally {
+  session.endSession();
+}
 
   return membership;
 };
@@ -61,14 +85,6 @@ export const findAllMembersInGroup = async (groupId) => {
     .find({ groupId })
     .populate("userId", "username email profilePicture")
     .select("roleInGroup status joinedAt");
-};
-
-// Get all groups a user belongs to
-export const findGroupsByUser = async (userId) => {
-  return await membershipService.findGroupsByUser({
-    userId,
-    status: "active",
-  });
 };
 
 // Update membership (role or status)
@@ -125,3 +141,5 @@ export const banUserInGroup = async (payload) => {
     status: "banned",
   });
 };
+
+

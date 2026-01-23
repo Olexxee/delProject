@@ -4,24 +4,31 @@ import {
   getGroupByName,
   generateInviteLink,
   joinGroupByInvite,
-  getGroupMembers,
+  // getGroupMembers,
+  getMyGroups,
   kickUserFromGroup,
   leaveGroup,
   changeMemberRole,
+  updateGroupMedia, // <-- new endpoint
 } from "../groupLogic/groupController.js";
-import authMiddleware from "../middlewares/authenticationMdw.js";
+import {authMiddleware} from "../middlewares/authenticationMdw.js";
 import { requireGroupAdmin } from "../admin/adminMiddleware.js";
+import { handleMediaUpload } from "../middlewares/uploadMiddleware.js";
 
-const router = Router();
+const groupRouter = Router();
+
+// -----------------------
+// GROUP ROUTES
+// -----------------------
 
 // Create a group
-router.post("/create", authMiddleware, createGroup);
+groupRouter.post("/create", authMiddleware, createGroup);
 
 // Get group by name
-router.get("/name/:name", authMiddleware, getGroupByName);
+groupRouter.get("/name/:name", authMiddleware, getGroupByName);
 
 // Generate invite link (admin only)
-router.get(
+groupRouter.get(
   "/:groupId/invite",
   authMiddleware,
   requireGroupAdmin,
@@ -29,13 +36,13 @@ router.get(
 );
 
 // Join a group via invite link
-router.post("/join/:joinCode", authMiddleware, joinGroupByInvite);
+groupRouter.post("/join/:joinCode", authMiddleware, joinGroupByInvite);
 
 // View group members
-router.get("/:groupId/members", authMiddleware, getGroupMembers);
+// groupRouter.get("/:groupId/members", authMiddleware, getGroupMembers);
 
 // Kick a user from group (admin)
-router.post(
+groupRouter.post(
   "/:groupId/kick/:userId",
   authMiddleware,
   requireGroupAdmin,
@@ -43,14 +50,29 @@ router.post(
 );
 
 // Leave group
-router.post("/:groupId/leave", authMiddleware, leaveGroup);
+groupRouter.post("/:groupId/leave", authMiddleware, leaveGroup);
 
 // Change member role (admin)
-router.post(
+groupRouter.post(
   "/:groupId/change-role/:userId",
   authMiddleware,
   requireGroupAdmin,
   changeMemberRole
 );
 
-export default router;
+// Get all groups of the user
+groupRouter.get("/my-groups", authMiddleware, getMyGroups);
+
+// -----------------------
+// UPLOAD GROUP MEDIA
+// -----------------------
+// Only 1 avatar or banner allowed per upload
+groupRouter.post(
+  "/:groupId/media",
+  authMiddleware,
+  requireGroupAdmin,
+  handleMediaUpload("group"), // you can also create separate type "group" if needed
+  updateGroupMedia
+);
+
+export default groupRouter;

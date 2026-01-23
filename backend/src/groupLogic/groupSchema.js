@@ -1,16 +1,17 @@
 import { Schema, model, Types } from "mongoose";
 import { nanoid } from "nanoid";
+import { group } from "node:console";
 
 const GroupSchema = new Schema(
   {
-    groupName: {
+    name: {
       type: String,
       required: true,
       trim: true,
       unique: true,
     },
 
-    description: {
+    bio: {
       type: String,
       default: "",
     },
@@ -48,7 +49,6 @@ const GroupSchema = new Schema(
       default: 1,
     },
 
-    // ✅ Tournament aggregates (denormalized)
     tournamentsCount: {
       type: Number,
       default: 0,
@@ -58,12 +58,12 @@ const GroupSchema = new Schema(
       type: Number,
       default: 0,
     },
-
+    chatRoom: { type: Types.ObjectId, ref: "ChatRoom", required: false },
     lastTournamentAt: {
       type: Date,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export default model("Group", GroupSchema);

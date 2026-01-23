@@ -10,19 +10,22 @@ export const findMembership = async ({ userId, groupId }) => {
   return await Membership.findOne({ userId, groupId });
 };
 
-// Get all users in a group
-export const findAllMembersInGroup = async (groupId) => {
-  return await Membership.find({ groupId }).populate(
-    "userId",
-    "username email profilePicture"
-  );
+// Get all memberships for a group
+export const findMembersByGroupId = async (groupId) => {
+  return Membership.find({ groupId, status: "active" }).sort({ joinedAt: 1 });
 };
 
-// Get all groups a user belongs to
-export const findGroupsByUser = async (filter) => {
-  return await Membership.find(filter)
-    .populate("groupId")
-    .select("groupId roleInGroup");
+// Get all memberships for a user
+export const findGroupsByUser = async ({ userId, status = "active" }, { skip = 0, limit = 20 } = {}) => {
+  return Membership.find({ userId, status })
+    .sort({ joinedAt: -1 })
+    .skip(skip)
+    .limit(limit);
+};
+
+// Count memberships for a user (for pagination or stats)
+export const countGroupsByUser = async ({ userId, status = "active" }) => {
+  return Membership.countDocuments({ userId, status });
 };
 
 // Update a user's membership (role, status, etc.)

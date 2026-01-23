@@ -1,6 +1,6 @@
 import { Router } from "express";
 import upload from "../lib/multerConfig.js";
-import authMiddleware from "../middlewares/authenticationMdw.js";
+import {authMiddleware} from "../middlewares/authenticationMdw.js";
 import {
   createPost,
   getPostsByUser,

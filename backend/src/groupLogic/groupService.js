@@ -1,70 +1,77 @@
-// ============================================
-// GROUP SERVICE WITH CHAT & ENCRYPTION
-// ============================================
-
-import * as groupDb from "../groupLogic/gSchemaService.js";
-import * as membership from "../groupLogic/membershipSchemaService.js";
+import * as groupDb from "./gSchemaService.js";
+import * as membershipService from "./membershipService.js";
+import * as membershipCrud from "./membershipSchemaService.js";
 import * as userService from "../user/userService.js";
-import * as chatRoomService from "../chat/chats/chatRoomService.js";
-import { sendNotification } from "../notifications/notificationService.js";
-import { NotificationTypes } from "../notifications/NotificationTypes.js";
-import { getEmailTemplate } from "../notifications/emailTemplates.js";
+import { sendNotification } from "../logic/notifications/notificationService.js";
+import { NotificationTypes } from "../logic/notifications/notificationTypes.js";
+import { getEmailTemplate } from "../logic/notifications/emailTemplates.js";
 import configService from "../lib/classes/configClass.js";
+import ChatRoom from "../models/chatRoomSchema.js";
+import { Message } from "../models/messageSchema.js";
+
+import { generateRoomKey } from "../logic/chats/chatRoomKeyService.js";
 import {
+  BadRequestError,
   ConflictException,
   NotFoundException,
-  BadRequestError,
-  ForbiddenException,
+  ForbiddenError,
 } from "../lib/classes/errorClasses.js";
-import { generateKey } from "../utils/encryption.js"; // AES key generator
+
+// GET GROUP BY NAME
+export const getGroupByName = async ({ name }) => {
+  const group = await groupDb.findGroupByName(name);
+
+  if (!group) {
+    throw new NotFoundException("Group not found");
+  }
+
+  return group;
+};
 
 // ==================================================
-// 1️⃣ VALIDATE GROUP CREATION
+// CREATE GROUP WITH CHAT ROOM & AES KEY
 // ==================================================
-export const validateGroupCreation = async ({ userId, groupName }) => {
+export const createGroup = async ({ userId, groupName, chatBroadcaster }) => {
+  // 1️⃣ Fetch user
   const user = await userService.findUserById(userId);
   if (!user) throw new NotFoundException("User not found");
 
+  // 2️⃣ Check duplicate group name
   const existingGroup = await groupDb.findGroupByName(groupName);
   if (existingGroup)
     throw new ConflictException("A group with this name already exists");
 
-  return { user };
-};
+  const aesKey = generateRoomKey();
 
-// ==================================================
-// 2️⃣ CREATE GROUP WITH CHAT ROOM & AES KEY
-// ==================================================
-export const createGroupWithChat = async ({ userId, groupName, chatBroadcaster }) => {
-  const { user } = await validateGroupCreation({ userId, groupName });
-
-  // Generate AES key for end-to-end encryption
-  const aesKey = generateKey();
-
-  // Create the group
+  // 4️⃣ Create the group
   const group = await groupDb.createGroup({
     name: groupName,
     admin: user._id,
     aesKey,
+    createdBy: user.id,
   });
   if (!group) throw new BadRequestError("Failed to create group");
 
-  // Add admin as member
-  await membership.createMembership({
+  // 5️⃣ Create chat room for the group
+  const chatRoom = await ChatRoom.create({
+    contextType: "group",
+    contextId: group._id,
+    aesKey,
+    createdAt: new Date(),
+  });
+
+  group.chatRoom = chatRoom._id;
+  await group.save();
+
+  // 6️⃣ Add creator as group member (admin)
+  await membershipService.createMembership({
     userId,
     groupId: group._id,
     role: "admin",
     status: "active",
   });
 
-  // Create a chat room for this group
-  const chatRoom = await chatRoomService.getOrCreateChatRoom({
-    contextType: "group",
-    contextId: group._id,
-    userId,
-  });
-
-  // Notify creator
+  // 7️⃣ Notify creator
   await sendNotification({
     recipient: user._id,
     sender: "system",
@@ -75,16 +82,16 @@ export const createGroupWithChat = async ({ userId, groupName, chatBroadcaster }
     meta: {
       email: user.email,
       payload: getEmailTemplate("GROUP_CREATED", {
-        firstName: user.firstName,
+        firstName: user.name,
         groupName: group.name,
         groupLink: `${configService.getBaseUrl()}/groups/${group._id}`,
       }),
     },
   });
 
-  // Broadcast system message via socket
+  // 8️⃣ Optionally broadcast system message
   if (chatBroadcaster) {
-    chatBroadcaster.broadcastMessage(chatRoom._id, {
+    chatBroadcaster.broadcastMessage(group._id, {
       system: true,
       content: `Group "${group.name}" created!`,
       sender: "system",
@@ -92,217 +99,195 @@ export const createGroupWithChat = async ({ userId, groupName, chatBroadcaster }
     });
   }
 
+  // 9️⃣ Return both group and chatRoom for convenience
   return { group, chatRoom };
 };
 
 // ==================================================
-// 3️⃣ JOIN GROUP WITH CHAT ROOM
+// UPDATE GROUP MEDIA (AVATAR/BANNER)
 // ==================================================
-export const joinGroupByInviteWithChat = async (joinCode, userId, chatBroadcaster) => {
+export const updateGroupMedia = async ({
+  groupId,
+  userId,
+  avatarMediaId,
+  bannerMediaId,
+}) => {
+  const group = await groupDb.findGroupById(groupId);
+  if (!group) throw new NotFoundException("Group not found");
+
+  if (group.admin.toString() !== userId.toString()) {
+    throw new ForbiddenError("Only admins can update group media");
+  }
+
+  if (avatarMediaId) group.avatar = avatarMediaId;
+  if (bannerMediaId) group.banner = bannerMediaId;
+
+  await group.save();
+  return group;
+};
+
+// ==================================================
+// JOIN GROUP BY INVITE
+// ==================================================
+export const joinGroupByInvite = async (joinCode, userId) => {
   const group = await groupDb.findGroupByJoinCode(joinCode);
   if (!group) throw new NotFoundException("Invalid invite link or group");
 
-  const existing = await membership.findMembership({ userId, groupId: group._id });
-  if (existing) throw new ConflictException("You are already a member of this group");
+  const existing = await membershipService.findMembership({
+    userId,
+    groupId: group._id,
+  });
+  if (existing) throw new ConflictException("You are already a member");
 
-  const newMember = await membership.createMembership({
+  return membershipService.createMembership({
     userId,
     groupId: group._id,
     role: "member",
     status: "active",
   });
-
-  // Notify admin
-  const admin = await userService.findUserById(group.admin);
-  if (admin) {
-    await sendNotification({
-      recipient: admin._id,
-      sender: "system",
-      type: NotificationTypes.MEMBER_JOINED,
-      title: `${userId} joined "${group.name}"`,
-      message: `${userId} joined your group`,
-      channels: ["inApp", "email"],
-      meta: {
-        email: admin.email,
-        payload: getEmailTemplate("MEMBER_JOINED", {
-          firstName: admin.firstName,
-          groupName: group.name,
-          joinerName: userId,
-        }),
-      },
-    });
-  }
-
-  // Broadcast system message in chat
-  if (chatBroadcaster) {
-    const chatRoom = await chatRoomService.getOrCreateChatRoom({
-      contextType: "group",
-      contextId: group._id,
-      userId,
-    });
-    chatBroadcaster.broadcastMessage(chatRoom._id, {
-      system: true,
-      content: `${userId} joined the group`,
-      sender: "system",
-      createdAt: new Date(),
-    });
-  }
-
-  return newMember;
 };
 
 // ==================================================
-// 4️⃣ KICK MEMBER
+// LEAVE GROUP
 // ==================================================
-export const kickUserFromGroup = async ({ adminId, groupId, targetUserId, chatBroadcaster }) => {
-  const adminMembership = await membership.findMembership({ userId: adminId, groupId });
-  if (!adminMembership || adminMembership.role !== "admin")
-    throw new ForbiddenException("Only admins can remove users");
+export const leaveGroup = async (userId, groupId) => {
+  const membership = await membershipService.findMembership({
+    userId,
+    groupId,
+  });
+  if (!membership) throw new NotFoundException("You are not a member");
 
-  const targetMembership = await membership.findMembership({ userId: targetUserId, groupId });
-  if (!targetMembership) throw new NotFoundException("Target user not a member");
-
-  await membership.removeMembership({ userId: targetUserId, groupId });
-
-  // Notify the removed user
-  const targetUser = await userService.findUserById(targetUserId);
-  if (targetUser) {
-    await sendNotification({
-      recipient: targetUser._id,
-      sender: "system",
-      type: NotificationTypes.MEMBER_REMOVED,
-      title: `Removed from group`,
-      message: `You have been removed from "${groupId}"`,
-      channels: ["inApp", "email"],
-      meta: {
-        email: targetUser.email,
-        payload: getEmailTemplate("MEMBER_REMOVED", {
-          firstName: targetUser.firstName,
-          groupName: groupId,
-        }),
-      },
-    });
+  if (membership.role === "admin") {
+    throw new ForbiddenError(
+      "Admin cannot leave without transferring ownership",
+    );
   }
 
-  // Broadcast system message in chat
-  if (chatBroadcaster) {
-    const chatRoom = await chatRoomService.getOrCreateChatRoom({
-      contextType: "group",
-      contextId: groupId,
-      userId: adminId,
-    });
-    chatBroadcaster.broadcastMessage(chatRoom._id, {
-      system: true,
-      content: `${targetUserId} was removed from the group`,
-      sender: "system",
-      createdAt: new Date(),
-    });
-  }
-
+  await membershipService.removeMembership({ userId, groupId });
   return true;
 };
 
 // ==================================================
-// 5️⃣ CHANGE MEMBER ROLE
+// KICK USER
 // ==================================================
-export const changeMemberRole = async ({ adminId, groupId, targetUserId, newRole }) => {
-  const adminMembership = await membership.findMembership({ userId: adminId, groupId });
-  if (!adminMembership || adminMembership.role !== "admin")
-    throw new ForbiddenException("Only admins can change roles");
-
-  const updated = await membership.updateMembership(
-    { userId: targetUserId, groupId },
-    { role: newRole }
-  );
-  if (!updated) throw new BadRequestError("Failed to update role");
-
-  const targetUser = await userService.findUserById(targetUserId);
-  if (targetUser) {
-    await sendNotification({
-      recipient: targetUser._id,
-      sender: "system",
-      type: NotificationTypes.MEMBER_ROLE_CHANGED,
-      title: `Role changed in "${groupId}"`,
-      message: `Your role is now "${newRole}"`,
-      channels: ["inApp", "email"],
-      meta: {
-        email: targetUser.email,
-        payload: getEmailTemplate("MEMBER_ROLE_CHANGED", {
-          firstName: targetUser.firstName,
-          groupName: groupId,
-          newRole,
-        }),
-      },
-    });
+export const kickUserFromGroup = async ({ adminId, groupId, targetUserId }) => {
+  const adminMembership = await membershipService.findMembership({
+    userId: adminId,
+    groupId,
+  });
+  if (!adminMembership || adminMembership.role !== "admin") {
+    throw new ForbiddenError("Only admins can remove users");
   }
 
+  const targetMembership = await membershipService.findMembership({
+    userId: targetUserId,
+    groupId,
+  });
+  if (!targetMembership) throw new NotFoundException("Target user not found");
+
+  await membershipService.removeMembership({ userId: targetUserId, groupId });
+  return true;
+};
+
+// ==================================================
+// CHANGE MEMBER ROLE
+// ==================================================
+export const changeMemberRole = async ({
+  adminId,
+  groupId,
+  targetUserId,
+  newRole,
+}) => {
+  const adminMembership = await membershipService.findMembership({
+    userId: adminId,
+    groupId,
+  });
+  if (!adminMembership || adminMembership.role !== "admin") {
+    throw new ForbiddenError("Only admins can change roles");
+  }
+
+  const updated = await membershipService.updateMembership(
+    { userId: targetUserId, groupId },
+    { role: newRole },
+  );
+
+  if (!updated) throw new BadRequestError("Failed to update role");
   return updated;
 };
 
 // ==================================================
-// 6️⃣ LEAVE GROUP
-// ==================================================
-export const leaveGroup = async ({ userId, groupId, chatBroadcaster }) => {
-  const membershipRecord = await membership.findMembership({ userId, groupId });
-  if (!membershipRecord)
-    throw new NotFoundException("You are not a member of this group");
-
-  if (membershipRecord.role === "admin")
-    throw new ForbiddenException("Admin cannot leave without transferring ownership");
-
-  await membership.removeMembership({ userId, groupId });
-
-  const leaver = await userService.findUserById(userId);
-
-  // Notify all admins
-  const admins = await membership.findAdminsByGroup(groupId);
-  for (const admin of admins) {
-    await sendNotification({
-      recipient: admin.userId,
-      sender: "system",
-      type: NotificationTypes.MEMBER_LEFT,
-      title: `${leaver.firstName} left "${groupId}"`,
-      message: `${leaver.firstName} has left the group`,
-      channels: ["inApp", "email"],
-      meta: {
-        email: admin.email,
-        payload: getEmailTemplate("MEMBER_LEFT", {
-          firstName: admin.firstName,
-          groupName: groupId,
-          leaverName: leaver.firstName,
-        }),
-      },
-    });
-  }
-
-  // Broadcast system message in chat
-  if (chatBroadcaster) {
-    const chatRoom = await chatRoomService.getOrCreateChatRoom({
-      contextType: "group",
-      contextId: groupId,
-      userId,
-    });
-    chatBroadcaster.broadcastMessage(chatRoom._id, {
-      system: true,
-      content: `${leaver.firstName} left the group`,
-      sender: "system",
-      createdAt: new Date(),
-    });
-  }
-
-  return true;
-};
-
-// ==================================================
-// 7️⃣ GENERATE INVITE LINK
+// GENERATE INVITE LINK
 // ==================================================
 export const generateInviteLink = async ({ adminId, groupId }) => {
-  const adminMembership = await membership.findMembership({ userId: adminId, groupId });
-  if (!adminMembership || adminMembership.role !== "admin")
-    throw new ForbiddenException("Only admins can generate invite links");
+  const adminMembership = await membershipService.findMembership({
+    userId: adminId,
+    groupId,
+  });
+  if (!adminMembership || adminMembership.role !== "admin") {
+    throw new ForbiddenError("Only admins can generate invite links");
+  }
 
   const inviteCode = await groupDb.createInviteCode(groupId);
-  const group = await groupDb.findGroupById(groupId);
-
   return `${configService.getBaseUrl()}/groups/join/${inviteCode}`;
+};
+
+export const getUserGroupsWithLastMessage = async ({
+  userId,
+  page = 1,
+  limit = 20,
+}) => {
+  const skip = (page - 1) * limit;
+
+  // 1️⃣ Fetch memberships for the user
+  const memberships = await membershipCrud.findGroupsByUser(
+    { userId, status: "active" },
+    { skip, limit },
+  );
+  if (!memberships.length) return [];
+
+  const groupIds = memberships.map((m) => m.groupId);
+
+  // 2️⃣ Fetch groups and populate chatRoom
+  const groups = await groupDb.findGroupsByIds(groupIds, {
+    populateChatRoom: true,
+  });
+
+  // 3️⃣ Map chatRoom IDs
+  const chatRoomIds = groups.map((g) => g.chatRoom?._id).filter(Boolean);
+
+  // 4️⃣ Fetch last messages per chatRoom
+  const lastMessages = chatRoomIds.length
+    ? await Message.aggregate([
+        { $match: { chatRoom: { $in: chatRoomIds } } },
+        { $sort: { createdAt: -1 } },
+        { $group: { _id: "$chatRoom", message: { $first: "$$ROOT" } } },
+      ])
+    : [];
+
+  const lastMessageMap = new Map(
+    lastMessages.map((m) => [m._id.toString(), m.message]),
+  );
+
+  // 5️⃣ Assemble final payload
+  return groups.map((group) => {
+    const chatRoom = group.chatRoom || null;
+    const lastMessage = chatRoom
+      ? lastMessageMap.get(chatRoom._id.toString())
+      : null;
+
+    return {
+      id: group._id,
+      name: group.name,
+      avatar: group.avatar,
+      chatRoomId: chatRoom?._id || null,
+      lastMessage: lastMessage
+        ? {
+            encryptedContent: lastMessage.encryptedContent,
+            sender: lastMessage.sender,
+            createdAt: lastMessage.createdAt,
+          }
+        : null,
+      lastMessageAt: lastMessage?.createdAt || null,
+    };
+  });
 };

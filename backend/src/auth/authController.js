@@ -22,18 +22,39 @@ export const signUp = asyncWrapper(async (req, res) => {
   const { errors, value } = validator.validate(registerSchema, req.body);
   if (errors) throw new ValidationException(errors);
 
-  const authResponse = await authService.registerUser(value);
-  return res.status(201).json(authResponse);
+  const { token, user } = await authService.registerUser(value);
+
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  });
+
+  return res.status(201).json({
+    token,
+    user,
+  });
 });
 
+
 export const login = asyncWrapper(async (req, res) => {
-  console.log("Login request body:", req.body);
   const { errors, value } = validator.validate(loginSchema, req.body);
   if (errors) throw new ValidationException(errors);
 
-  const authResponse = await authService.authenticateUser(value);
-  return res.status(200).json(authResponse);
+  const { token, user } = await authService.authenticateUser(value);
+
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  });
+
+  return res.status(200).json({
+    token,
+    user,
+  });
 });
+
 
 /* ================= USER PROFILE ================= */
 
