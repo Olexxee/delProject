@@ -22,7 +22,12 @@ const groupRouter = Router();
 // -----------------------
 
 // Create a group
-groupRouter.post("/create", authMiddleware, createGroup);
+groupRouter.post(
+  "/create", 
+  authMiddleware, 
+  handleMediaUpload("group"), 
+  createGroup
+);
 
 // Get group by name
 groupRouter.get("/name/:name", authMiddleware, getGroupByName);

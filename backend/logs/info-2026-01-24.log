@@ -1,0 +1,88 @@
+[2026-01-24 07:18:34] INFO: ☁️ Cloudinary initialized
+[2026-01-24 07:18:35] INFO: Firebase Admin initialized (Base64)
+[2026-01-24 07:47:50] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-01-24 07:47:50] INFO: 📍 Request URL:
+[2026-01-24 07:47:50] INFO: 🎫 Cookie token:
+[2026-01-24 07:47:50] INFO: 🎫 Header token:
+[2026-01-24 07:47:50] INFO: 🎫 Token being used:
+[2026-01-24 07:47:50] ERROR: ❌ Authentication failed:
+[2026-01-24 07:47:50] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-24 07:49:11] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-01-24 07:49:11] INFO: 📍 Request URL:
+[2026-01-24 07:49:11] INFO: 🎫 Cookie token:
+[2026-01-24 07:49:11] INFO: 🎫 Header token:
+[2026-01-24 07:49:11] INFO: 🎫 Token being used:
+[2026-01-24 07:49:11] ERROR: ❌ Authentication failed:
+[2026-01-24 07:49:11] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-24 07:51:29] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-01-24 07:51:29] INFO: 📍 Request URL:
+[2026-01-24 07:51:29] INFO: 🎫 Cookie token:
+[2026-01-24 07:51:29] INFO: 🎫 Header token:
+[2026-01-24 07:51:29] INFO: 🎫 Token being used:
+[2026-01-24 07:51:29] ERROR: ❌ Authentication failed:
+[2026-01-24 07:51:29] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-24 07:51:32] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-01-24 07:51:32] INFO: 📍 Request URL:
+[2026-01-24 07:51:33] INFO: 🎫 Cookie token:
+[2026-01-24 07:51:33] INFO: 🎫 Header token:
+[2026-01-24 07:51:33] INFO: 🎫 Token being used:
+[2026-01-24 07:51:33] ERROR: ❌ Authentication failed:
+[2026-01-24 07:51:33] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-24 07:52:24] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-01-24 07:52:24] INFO: 📍 Request URL:
+[2026-01-24 07:52:24] INFO: 🎫 Cookie token:
+[2026-01-24 07:52:24] INFO: 🎫 Header token:
+[2026-01-24 07:52:24] INFO: 🎫 Token being used:
+[2026-01-24 07:52:24] ERROR: ❌ Authentication failed:
+[2026-01-24 07:52:24] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-24 07:52:49] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-01-24 07:52:49] INFO: 📍 Request URL:
+[2026-01-24 07:52:49] INFO: 🎫 Cookie token:
+[2026-01-24 07:52:49] INFO: 🎫 Header token:
+[2026-01-24 07:52:49] INFO: 🎫 Token being used:
+[2026-01-24 07:52:50] ERROR: ❌ Authentication failed:
+[2026-01-24 07:52:50] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-24 07:52:51] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-01-24 07:52:51] INFO: 📍 Request URL:
+[2026-01-24 07:52:51] INFO: 🎫 Cookie token:
+[2026-01-24 07:52:51] INFO: 🎫 Header token:
+[2026-01-24 07:52:51] INFO: 🎫 Token being used:
+[2026-01-24 07:52:51] ERROR: ❌ Authentication failed:
+[2026-01-24 07:52:51] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-24 09:06:32] INFO: ☁️ Cloudinary initialized
+[2026-01-24 09:06:33] INFO: Firebase Admin initialized (Base64)
+[2026-01-24 10:31:36] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-01-24 10:31:36] INFO: 📍 Request URL:
+[2026-01-24 10:31:36] INFO: 🎫 Cookie token:
+[2026-01-24 10:31:36] INFO: 🎫 Header token:
+[2026-01-24 10:31:36] INFO: 🎫 Token being used:
+[2026-01-24 10:31:36] ERROR: ❌ Authentication failed:
+[2026-01-24 10:31:36] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-24 10:48:59] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-01-24 10:48:59] INFO: 📍 Request URL:
+[2026-01-24 10:48:59] INFO: 🎫 Cookie token:
+[2026-01-24 10:48:59] INFO: 🎫 Header token:
+[2026-01-24 10:48:59] INFO: 🎫 Token being used:
+[2026-01-24 10:48:59] ERROR: ❌ Authentication failed:
+[2026-01-24 10:48:59] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-24 10:56:00] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-01-24 10:56:00] INFO: 📍 Request URL:
+[2026-01-24 10:56:00] INFO: 🎫 Cookie token:
+[2026-01-24 10:56:00] INFO: 🎫 Header token:
+[2026-01-24 10:56:00] INFO: 🎫 Token being used:
+[2026-01-24 10:56:00] ERROR: ❌ Authentication failed:
+[2026-01-24 10:56:00] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-24 11:04:55] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-01-24 11:04:55] INFO: 📍 Request URL:
+[2026-01-24 11:04:55] INFO: 🎫 Cookie token:
+[2026-01-24 11:04:55] INFO: 🎫 Header token:
+[2026-01-24 11:04:55] INFO: 🎫 Token being used:
+[2026-01-24 11:04:55] ERROR: ❌ Authentication failed:
+[2026-01-24 11:04:55] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-24 11:09:08] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-01-24 11:09:08] INFO: 📍 Request URL:
+[2026-01-24 11:09:08] INFO: 🎫 Cookie token:
+[2026-01-24 11:09:08] INFO: 🎫 Header token:
+[2026-01-24 11:09:08] INFO: 🎫 Token being used:
+[2026-01-24 11:09:08] ERROR: ❌ Authentication failed:
+[2026-01-24 11:09:08] ERROR: 🔐 === END AUTH MIDDLEWARE ===

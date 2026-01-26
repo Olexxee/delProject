@@ -20,8 +20,12 @@ import membershipRouter from "../routes/membershipRoute.js";
 import tournamentRouter from "../routes/tournamentRoutes.js";
 import participantRouter from "../routes/participantRoute.js";
 
+
 const app = express();
 const server = createServer(app);
+
+app.disable("etag");
+
 
 // -------------------------
 // MIDDLEWARES

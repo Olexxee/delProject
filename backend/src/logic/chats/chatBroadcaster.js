@@ -1,37 +1,25 @@
-import { ChatEvents } from "./chatContract.js";
-
-class ChatBroadcaster {
+export default class ChatBroadcaster {
   constructor(io) {
     this.io = io;
   }
 
-  emitToRoom(chatRoomId, event, payload) {
-    this.io.to(chatRoomId).emit(event, payload);
-  }
-
   broadcastMessage(chatRoomId, message) {
-    this.emitToRoom(chatRoomId, ChatEvents.NEW_MESSAGE, message);
-  }
-
-  notifyDelivered(chatRoomId, userId) {
-    this.emitToRoom(chatRoomId, ChatEvents.DELIVERED, { chatRoomId, userId });
-  }
-
-  notifyRead(chatRoomId, userId) {
-    this.emitToRoom(chatRoomId, ChatEvents.READ, { chatRoomId, userId });
-  }
-
-  notifyDeletedForAll(chatRoomId, messageId) {
-    this.emitToRoom(chatRoomId, ChatEvents.DELETE_HARD, { messageId });
+    this.io.to(chatRoomId).emit("chat:new_message", message);
   }
 
   notifyTyping(chatRoomId, userId, isTyping) {
-    this.emitToRoom(chatRoomId, ChatEvents.USER_TYPING, {
-      chatRoomId,
-      userId,
-      isTyping,
-    });
+    this.io.to(chatRoomId).emit("chat:user_typing", { userId, isTyping });
+  }
+
+  notifyRead(chatRoomId, userId) {
+    this.io.to(chatRoomId).emit("chat:read", { chatRoomId, userId });
+  }
+
+  notifyDelivered(chatRoomId, userId) {
+    this.io.to(chatRoomId).emit("chat:delivered", { chatRoomId, userId });
+  }
+
+  notifyDeletedForAll(chatRoomId, messageId) {
+    this.io.to(chatRoomId).emit("chat:delete_for_everyone", { messageId });
   }
 }
-
-export default ChatBroadcaster;

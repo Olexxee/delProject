@@ -5,7 +5,7 @@ import jwtService from "../lib/classes/jwtClass.js";
 import { serializeUser } from "../lib/serializeUser.js";
 import crypto from "crypto";
 import logger  from "../lib/logger.js"
-import { sendNotification } from "../logic/notifications/notificationService.js";
+import NotificationService from "../logic/notifications/notificationService.js";
 import { NotificationTypes } from "../logic/notifications/notificationTypes.js";
 import { getEmailTemplate } from "../logic/notifications/emailTemplates.js";
 import configService from "../lib/classes/configClass.js";
@@ -41,7 +41,7 @@ export const registerUser = async (payload) => {
   });
 
   // Send welcome notification & email
-  await sendNotification({
+  await NotificationService.send({
     recipient: newUser._id,
     sender: "system",
     type: NotificationTypes.USER_REGISTERED,
@@ -52,7 +52,7 @@ export const registerUser = async (payload) => {
       email: newUser.email,
       payload: getEmailTemplate("WELCOME_EMAIL", { username: newUser.username, profileLink: `${configService.getOrThrow("FRONTEND_URL")}/profile` })
     }
-  });
+  });   
 
   return { token, user: serializeUser(newUser) };
 };
@@ -87,7 +87,7 @@ export const sendVerificationEmail = async (email) => {
   await user.save();
 
   // Send via notification service
-  await sendNotification({
+  await NotificationService.send({
     recipient: user._id,
     sender: "system",
     type: NotificationTypes.VERIFICATION_SENT,
@@ -132,7 +132,7 @@ export const changePassword = async (userId, { currentPassword, newPassword }) =
   await user.save();
 
   // Notify user
-  await sendNotification({
+  await NotificationService.send({
     recipient: user._id,
     sender: "system",
     type: NotificationTypes.PASSWORD_CHANGED,
@@ -161,7 +161,7 @@ export const forgotPassword = async (email) => {
 
   const resetLink = `${configService.getOrThrow("FRONTEND_URL")}/reset-password?token=${token}&email=${user.email}`;
 
-  await sendNotification({
+  await NotificationService.send({
     recipient: user._id,
     sender: "system",
     type: NotificationTypes.PASSWORD_RESET_REQUESTED,
@@ -192,7 +192,7 @@ export const resetPassword = async (token, newPassword, email) => {
   await user.save();
 
   // Notify user
-  await sendNotification({
+  await NotificationService.send({
     recipient: user._id,
     sender: "system",
     type: NotificationTypes.PASSWORD_RESET_SUCCESS,

@@ -1,116 +1,135 @@
-// notificationService.js
 import logger from "../../lib/logger.js";
 import * as notificationDb from "../../models/notificationSchemaService.js";
 import { emailChannel } from "./emailChannel.js";
 import { pushChannel } from "./pushChannel.js";
 import { getSocketsByUserId } from "../socket/socketRegistry.js";
 import { io } from "../../server/serverConfig.js";
+import * as userService from "../../user/userService.js";
 
-/**
- * Send notification to a user via one or more channels.
- * Only sends in-app if the user has active sockets.
- */
-export const sendNotification = async ({
-  recipient,        // User ID
-  sender = "system", // Optional sender
-  type,             // Notification type
-  title,
-  message,
-  channels = ["inApp"], // ["inApp", "email", "push"]
-  meta = {},            // Additional payload or email info
-}) => {
-  const activeChannels = [];
+class NotificationService {
+  /**
+   * =========================
+   * SEND NOTIFICATION
+   * =========================
+   */
+  async send({
+    recipientId,
+    senderId = "system",
+    type,
+    title,
+    message,
+    channels = ["inApp", "push"],
+    payload = {},
+  }) {
+    const activeChannels = [];
+    const recipient = await userService.findUserById(recipientId);
 
-  // ---------------------------
-  // 1️⃣ In-app (WebSocket) channel
-  // ---------------------------
-  if (channels.includes("inApp")) {
-    const sockets = getSocketsByUserId(recipient);
-    if (sockets.length > 0) {
-      sockets.forEach((socketId) => {
-        io.to(socketId).emit(type, { sender, title, message, meta });
+    if (!recipient) {
+      logger.error(`[Notification] Recipient ${recipientId} not found`);
+      return { success: false };
+    }
+
+    // 1️⃣ In-app (WebSocket)
+    if (channels.includes("inApp")) {
+      const sockets = getSocketsByUserId(recipientId);
+
+      if (sockets.length > 0) {
+        sockets.forEach((socketId) => {
+          io.to(socketId).emit("notification:new", {
+            type,
+            title,
+            message,
+            payload,
+            senderId,
+            createdAt: new Date(),
+          });
+        });
+        activeChannels.push("inApp");
+      }
+    }
+
+    // 2️⃣ Push notifications
+    if (
+      channels.includes("push") &&
+      recipient.deviceTokens?.length
+    ) {
+      try {
+        await pushChannel.send({
+          tokens: recipient.deviceTokens,
+          title,
+          body: message,
+          payload,
+        });
+        activeChannels.push("push");
+      } catch (err) {
+        logger.error(
+          `[Notification] Push failed for ${recipientId}`,
+          err
+        );
+      }
+    }
+
+    // 3️⃣ Email notifications
+    if (channels.includes("email") && recipient.email) {
+      try {
+        await emailChannel.send({
+          to: recipient.email,
+          type,
+          payload,
+        });
+        activeChannels.push("email");
+      } catch (err) {
+        logger.error(
+          `[Notification] Email failed for ${recipientId}`,
+          err
+        );
+      }
+    }
+
+    // 4️⃣ Persist notification
+    try {
+      await notificationDb.createNotification({
+        recipient: recipientId,
+        sender: senderId,
+        type,
+        title,
+        message,
+        channels: activeChannels,
+        meta: payload,
       });
-      logger.info(`[Notification] Sent ${type} to user ${recipient} via in-app`);
-      activeChannels.push("inApp");
-    } else {
-      logger.info(`[Notification] User ${recipient} offline, skipping in-app`);
-    }
-  }
-
-  // ---------------------------
-  // 2️⃣ Email channel
-  // ---------------------------
-  if (channels.includes("email") && meta?.email) {
-    try {
-      await emailChannel.send({ to: meta.email, type, payload: meta.payload });
-      logger.info(`[Notification] Sent ${type} to user ${recipient} via email`);
-      activeChannels.push("email");
     } catch (err) {
-      logger.error(`[Notification] Email failed for ${recipient}:`, err.message);
+      logger.error(
+        "[Notification] DB persistence failed",
+        err
+      );
     }
-  }
 
-  // ---------------------------
-  // 3️⃣ Push notification channel
-  // ---------------------------
-  if (channels.includes("push") && Array.isArray(meta?.deviceTokens) && meta.deviceTokens.length > 0) {
-    try {
-      await pushChannel.send({ tokens: meta.deviceTokens, title, body: message, payload: meta.payload });
-      logger.info(`[Notification] Sent ${type} to user ${recipient} via push`);
-      activeChannels.push("push");
-    } catch (err) {
-      logger.error(`[Notification] Push failed for ${recipient}:`, err.message);
-    }
-  }
-
-  // ---------------------------
-  // 4️⃣ Persist notification in DB
-  // ---------------------------
-  try {
-    await notificationDb.createNotification({
-      recipient,
-      sender,
-      type,
-      title,
-      message,
+    return {
+      success: activeChannels.length > 0,
       channels: activeChannels,
-      meta,
-    });
-  } catch (err) {
-    logger.error(`[Notification] Failed to persist notification for ${recipient}:`, err.message);
+    };
   }
 
-  return { success: activeChannels.length > 0, activeChannels };
-};
+  /**
+   * =========================
+   * READ / UPDATE
+   * =========================
+   */
+  getForUser(userId, options = {}) {
+    return notificationDb.findNotificationsByRecipient(userId, options);
+  }
 
-/**
- * Fetch notifications for a user
- */
-export const getUserNotifications = async (userId, options = {}) => {
-  return notificationDb.findNotificationsByRecipient(userId, options);
-};
+  markAsRead(notificationId) {
+    return notificationDb.markNotificationRead(notificationId);
+  }
 
-/**
- * Mark a single notification as read
- */
-export const markNotificationRead = async (notificationId) => {
-  const notification = await notificationDb.markNotificationRead(notificationId);
-  if (!notification) throw new Error("Notification not found");
-  return notification;
-};
+  markAllAsRead(userId) {
+    return notificationDb.markAllNotificationsRead(userId);
+  }
 
-/**
- * Mark all notifications as read for a user
- */
-export const markAllNotificationsRead = async (userId) => {
-  return notificationDb.markAllNotificationsRead(userId);
-};
+  delete(notificationId) {
+    return notificationDb.deleteNotificationById(notificationId);
+  }
+}
 
-/**
- * Delete a notification
- */
-export const deleteNotification = async (notificationId) => {
-  const notification = await notificationDb.deleteNotificationById(notificationId);
-  if (!notification) throw new Error("Notification not found");
-  return notification;
-};
+export default new NotificationService();
