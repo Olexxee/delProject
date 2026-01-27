@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import path from "path";
 import { createServer } from "http";
 import configRouter from "../routes/configRoute.js";
+import chatRouter from "../routes/chatRoutes.js";
 import { initSocketServer } from "../logic/socket/index.js";
 import configService from "../lib/classes/configClass.js";
 import { setIo } from "../logic/chats/chatController.js";
@@ -82,6 +83,7 @@ app.use(`${apiBase}/config`, configRouter);
 app.use(`${apiBase}/membership`, membershipRouter);
 app.use(`${apiBase}/tournaments`, tournamentRouter);
 app.use(`${apiBase}/participants`, participantRouter);
+app.use(`${apiBase}/chats`, chatRouter);
 
 // -------------------------
 // GLOBAL ERROR HANDLER

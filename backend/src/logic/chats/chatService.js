@@ -1,24 +1,23 @@
 import ChatRoom from "../../models/chatRoomSchema.js";
 import { Message } from "../../models/messageSchema.js";
 import { ensureChatAccess } from "./chatGuard.js";
-import { encrypt, decrypt } from "../../lib/encryption.js";
+import { encrypt } from "../../lib/encryption.js";
 import {
   NotFoundException,
-  ForbiddenError,
   BadRequestError,
 } from "../../lib/classes/errorClasses.js";
-import { canSoftDelete, canDeleteForEveryone } from "./messageStateMachine.js";
 
-// Import the instance (Singleton)
 import notificationService from "../notifications/notificationService.js";
 import { getSocketsByUserId } from "../socket/socketRegistry.js";
 
-export class ChatService {
+class ChatService {
   /**
-   * FETCH MESSAGES
+   * =========================
+   * FETCH MESSAGES (ENCRYPTED)
+   * =========================
    */
   async getMessages({ chatRoomId, userId, limit = 50, skip = 0 }) {
-    const room = await ChatRoom.findById(chatRoomId).select("+aesKey");
+    const room = await ChatRoom.findById(chatRoomId);
     if (!room) throw new NotFoundException("Chat room not found");
 
     await ensureChatAccess(userId, chatRoomId);
@@ -33,11 +32,15 @@ export class ChatService {
       .limit(limit)
       .populate("sender", "username firstName lastName profilePicture");
 
-    return messages.map((msg) => this._transformMessage(msg, room.aesKey));
+    // IMPORTANT:
+    // No decryption here. Messages are returned exactly as stored.
+    return messages;
   }
 
   /**
-   * CREATE MESSAGE
+   * =========================
+   * CREATE MESSAGE (ENCRYPT)
+   * =========================
    */
   async createMessage({
     chatRoomId,
@@ -46,102 +49,99 @@ export class ChatService {
     mediaIds = [],
     broadcaster = null,
   }) {
-    // 1. Validation
-    if (!content?.trim() && (!mediaIds || mediaIds.length === 0)) {
+    if (!content?.trim() && mediaIds.length === 0) {
       throw new BadRequestError("Message must have content or media");
     }
 
-    const room = await ChatRoom.findById(chatRoomId).select("+aesKey participants name");
+    const room = await ChatRoom.findById(chatRoomId)
+      .select("+aesKey participants name");
     if (!room) throw new NotFoundException("Chat room not found");
 
     await ensureChatAccess(senderId, chatRoomId);
 
-    // 2. Encryption (Storage level)
-    const encryptedPayload = content?.trim()
+    // Encrypt at rest (server never decrypts)
+    const encrypted = content?.trim()
       ? encrypt(content.trim(), room.aesKey)
       : null;
 
-    // 3. Persistence
     const message = await Message.create({
       chatRoom: chatRoomId,
       sender: senderId,
-      encryptedContent: encryptedPayload?.cipherText || null,
-      iv: encryptedPayload?.iv || null,
-      authTag: encryptedPayload?.authTag || null,
+      encryptedContent: encrypted?.cipherText ?? null,
+      iv: encrypted?.iv ?? null,
+      authTag: encrypted?.authTag ?? null,
       media: mediaIds,
       deliveredTo: [senderId],
       readBy: [senderId],
     });
 
-    await ChatRoom.updateOne({ _id: chatRoomId }, { lastMessageAt: new Date() });
+    await ChatRoom.updateOne(
+      { _id: chatRoomId },
+      { lastMessageAt: new Date() }
+    );
 
-    const populated = await message.populate("sender", "username firstName lastName profilePicture");
+    const populatedMessage = await message.populate(
+      "sender",
+      "username firstName lastName profilePicture"
+    );
 
-    // 4. Socket Broadcasting
+    // Broadcast encrypted payload only
     if (broadcaster) {
-      broadcaster.broadcastMessage(chatRoomId, populated);
+      broadcaster.broadcastMessage(chatRoomId, populatedMessage);
     }
 
-    // 5. Offline Notifications
-    this._handleOfflineNotifications(room, senderId, chatRoomId);
+    // Notify offline participants
+    await this.#notifyOfflineParticipants(
+      room,
+      senderId,
+      chatRoomId
+    );
 
-    return populated;
+    return populatedMessage;
   }
 
   /**
-   * PRIVATE: Handle Push Notifications
+   * =========================
+   * OFFLINE NOTIFICATIONS
+   * =========================
    */
-  async _handleOfflineNotifications(room, senderId, chatRoomId) {
+  async #notifyOfflineParticipants(room, senderId, chatRoomId) {
     try {
-      const otherParticipants = room.participants
-        .map((p) => p.toString())
-        .filter((id) => id !== senderId.toString());
-
-      // Filter users who have no active sockets
-      const offlineUsers = otherParticipants.filter(
-        (userId) => getSocketsByUserId(userId).length === 0
-      );
-
-      if (offlineUsers.length > 0) {
-        await Promise.all(
-          offlineUsers.map((userId) =>
-            notificationService.send({ // Called directly on the imported instance
-              recipientId: userId,
-              senderId: senderId,
-              type: "CHAT_MESSAGE",
-              title: room.name || "New Message",
-              message: "🔒 You have a new encrypted message",
-              payload: { chatRoomId },
-            })
-          )
+      const offlineUsers = room.participants
+        .map(String)
+        .filter(
+          (id) =>
+            id !== senderId.toString() &&
+            getSocketsByUserId(id).length === 0
         );
-      }
+
+      if (!offlineUsers.length) return;
+
+      await Promise.all(
+        offlineUsers.map((userId) =>
+          notificationService.send({
+            recipientId: userId,
+            senderId,
+            type: "CHAT_MESSAGE",
+            title: room.name || "New Message",
+            message: "🔒 You have a new encrypted message",
+            payload: { chatRoomId },
+          })
+        )
+      );
     } catch (err) {
-      console.error("[Notification Error]", err);
+      console.error("[ChatService Notification Error]", err);
     }
   }
 
-  // ... updateMessageStatus and deleteMessage methods remain the same ...
+  async getAesKey({ chatRoomId, userId }) {
+    const room = await ChatRoom.findById(chatRoomId).select("+aesKey participants");
+    if (!room) throw new NotFoundException("Chat room not found");
 
-  _transformMessage(msg, aesKey) {
-    let content = null;
-    const obj = msg.toObject();
+    // Access guard
+    await ensureChatAccess(userId, chatRoomId);
 
-    if (msg.encryptedContent && msg.iv && msg.authTag) {
-      try {
-        content = decrypt(msg.encryptedContent, aesKey, msg.iv, msg.authTag);
-      } catch (err) {
-        content = "[Decryption Error]";
-      }
-    }
-
-    return {
-      ...obj,
-      content: content || obj.content,
-      encryptedContent: undefined,
-      iv: undefined,
-      authTag: undefined,
-    };
+    return { aesKey: room.aesKey };
   }
 }
 

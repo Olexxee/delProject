@@ -68,26 +68,23 @@ router.post(
 router.post("/message", authenticate, async (req, res, next) => {
   try {
     const { chatRoomId, content, mediaIds = [] } = req.body;
+    
+    // Create a broadcaster instance for this REST request
+    const broadcaster = new ChatBroadcaster(io);
 
     const message = await chatService.createMessage({
       chatRoomId,
       senderId: req.user.id,
       content,
       mediaIds,
+      broadcaster, // Now REST messages will also trigger Socket events!
     });
 
-    // Note: The socket event will broadcast this to all room members
-    res.status(201).json({
-      success: true,
-      message: "Message sent",
-      data: { message },
-    });
+    res.status(201).json({ success: true, data: { message } });
   } catch (error) {
     next(error);
   }
 });
-
-export default router;
 
 // ============================================
 // CLIENT-SIDE USAGE EXAMPLES

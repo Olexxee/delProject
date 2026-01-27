@@ -24,45 +24,35 @@ export const getGroupByName = asyncWrapper(async (req, res) => {
 // CREATE GROUP
 // ==================================================
 export const createGroup = asyncWrapper(async (req, res) => {
-  // 1. Validate Schema First
+  // 1️⃣ Validate request body
   const { errors, value } = validator.validate(createGroupSchema, req.body);
   if (errors) throw new ValidationException(errors);
 
-  // 2. Check for required files (WhatsApp style usually requires an avatar)
-  if (!req.files || !req.files.avatar) {
-    throw new ValidationException("Group avatar is required");
-  }
+  // 3️⃣ Process avatar
+  const [avatarMedia] = await processUploadedMedia(
+    req.files.avatar,
+    "group-avatar",
+    req.user,
+    {
+      resizeWidth: 500,
+      resizeHeight: 500,
+      minCount: 1,
+    }
+  );
 
-  let avatarMediaId = null;
-
-  // 3. Process the Avatar
-  if (req.files.avatar) {
-    // Note: user is passed from authMiddleware (req.user)
-    const [avatarMedia] = await processUploadedMedia(
-      req.files.avatar, 
-      "group-avatar", 
-      req.user, 
-      {
-        resizeWidth: 500, // Avatars don't need 1080px (saves bandwidth)
-        resizeHeight: 500,
-        minCount: 1,
-      }
-    );
-    avatarMediaId = avatarMedia._id;
-  }
-
-  // 4. Create Group (Passing the avatar ID)
-  const group = await groupService.createGroup({
+  // 4️⃣ Delegate to service
+  const result = await groupService.createGroup({
     userId: req.user._id,
-    groupName: value.name,
-    avatar: avatarMediaId, 
+    name: value.name,
+    privacy: value.privacy,
+    avatar: avatarMedia._id,
     chatBroadcaster: req.chatBroadcaster,
   });
 
   res.status(201).json({
     success: true,
     message: "Group created successfully",
-    group,
+    ...result,
   });
 });
 

@@ -2,7 +2,7 @@ import * as groupDb from "./gSchemaService.js";
 import * as membershipService from "./membershipService.js";
 import * as membershipCrud from "./membershipSchemaService.js";
 import * as userService from "../user/userService.js";
-import { sendNotification } from "../logic/notifications/notificationService.js";
+import NotificationService from "../logic/notifications/notificationService.js";
 import { NotificationTypes } from "../logic/notifications/notificationTypes.js";
 import { getEmailTemplate } from "../logic/notifications/emailTemplates.js";
 import configService from "../lib/classes/configClass.js";
@@ -31,28 +31,41 @@ export const getGroupByName = async ({ name }) => {
 // ==================================================
 // CREATE GROUP WITH CHAT ROOM & AES KEY
 // ==================================================
-export const createGroup = async ({ userId, groupName, chatBroadcaster }) => {
+export const createGroup = async ({
+  userId,
+  name,
+  privacy,
+  avatar,
+  chatBroadcaster,
+}) => {
   // 1️⃣ Fetch user
   const user = await userService.findUserById(userId);
   if (!user) throw new NotFoundException("User not found");
 
   // 2️⃣ Check duplicate group name
-  const existingGroup = await groupDb.findGroupByName(groupName);
-  if (existingGroup)
+  const existingGroup = await groupDb.findGroupByName(name);
+  if (existingGroup) {
     throw new ConflictException("A group with this name already exists");
+  }
 
+  // 3️⃣ Generate encryption key
   const aesKey = generateRoomKey();
 
-  // 4️⃣ Create the group
+  // 4️⃣ Create group
   const group = await groupDb.createGroup({
-    name: groupName,
+    name,
+    privacy,
+    avatar,
     admin: user._id,
+    createdBy: user._id,
     aesKey,
-    createdBy: user.id,
   });
-  if (!group) throw new BadRequestError("Failed to create group");
 
-  // 5️⃣ Create chat room for the group
+  if (!group) {
+    throw new BadRequestError("Failed to create group");
+  }
+
+  // 5️⃣ Create chat room
   const chatRoom = await ChatRoom.create({
     contextType: "group",
     contextId: group._id,
@@ -60,19 +73,20 @@ export const createGroup = async ({ userId, groupName, chatBroadcaster }) => {
     createdAt: new Date(),
   });
 
+  // 6️⃣ Link chat room
   group.chatRoom = chatRoom._id;
   await group.save();
 
-  // 6️⃣ Add creator as group member (admin)
+  // 7️⃣ Create membership
   await membershipService.createMembership({
-    userId,
+    userId: user._id,
     groupId: group._id,
     role: "admin",
     status: "active",
   });
 
-  // 7️⃣ Notify creator
-  await sendNotification({
+  // 8️⃣ Notify creator
+  await NotificationService.send({
     recipient: user._id,
     sender: "system",
     type: NotificationTypes.GROUP_CREATED,
@@ -89,7 +103,7 @@ export const createGroup = async ({ userId, groupName, chatBroadcaster }) => {
     },
   });
 
-  // 8️⃣ Optionally broadcast system message
+  // 9️⃣ Broadcast system message
   if (chatBroadcaster) {
     chatBroadcaster.broadcastMessage(group._id, {
       system: true,
@@ -99,7 +113,6 @@ export const createGroup = async ({ userId, groupName, chatBroadcaster }) => {
     });
   }
 
-  // 9️⃣ Return both group and chatRoom for convenience
   return { group, chatRoom };
 };
 

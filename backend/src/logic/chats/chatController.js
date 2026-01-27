@@ -1,16 +1,22 @@
 import * as chatService from "../../logic/chats/chatService.js";
 import { asyncWrapper } from "../../lib/utils.js";
 import ChatBroadcaster from "../../logic/chats/chatBroadcaster.js";
-import { io } from "../../server/serverConfig.js";
 
 let broadcaster;
 
+/**
+ * Initialize broadcaster
+ */
 export const setIo = (ioInstance) => {
   broadcaster = new ChatBroadcaster(ioInstance);
-  if (broadcaster) {
-    console.log("broadcaster running");
-  }
+  console.log(broadcaster ? "Broadcaster running" : "Failed to initialize broadcaster");
 };
+
+/**
+ * ===============================
+ * CHAT ROOM ENDPOINTS
+ * ===============================
+ */
 
 /**
  * Get or create chat room by context
@@ -19,42 +25,63 @@ export const getChatRoom = asyncWrapper(async (req, res) => {
   const { contextType, contextId } = req.params;
   const userId = req.user.id;
 
-  const chatRoom = await chatService.getOrCreateChatRoom({
-    contextType,
-    contextId,
-    userId,
-  });
+  const chatRoom = await chatService.getOrCreateChatRoom({ contextType, contextId, userId });
 
   res.status(200).json({ success: true, data: { chatRoom } });
 });
 
 /**
- * Get messages
+ * Get user chat rooms
+ */
+export const getUserChatRooms = asyncWrapper(async (req, res) => {
+  const userId = req.user.id;
+  const limit = parseInt(req.query.limit || 20);
+  const skip = parseInt(req.query.skip || 0);
+
+  const chatRooms = await chatService.getUserChatRooms({ userId, limit, skip });
+
+  res.status(200).json({ success: true, data: { chatRooms, count: chatRooms.length } });
+});
+
+/**
+ * ===============================
+ * MESSAGES ENDPOINTS
+ * ===============================
+ */
+
+/**
+ * Get messages from a chat room
  */
 export const getMessages = asyncWrapper(async (req, res) => {
   const { chatRoomId } = req.params;
-  const { limit = 50, skip = 0 } = req.query;
+  const limit = parseInt(req.query.limit || 50);
+  const skip = parseInt(req.query.skip || 0);
   const userId = req.user.id;
 
-  const messages = await chatService.getMessages({
-    chatRoomId,
-    userId,
-    limit: parseInt(limit),
-    skip: parseInt(skip),
-  });
+  const messages = await chatService.getMessages({ chatRoomId, userId, limit, skip });
 
   res.status(200).json({
     success: true,
-    data: {
-      messages,
-      count: messages.length,
-      hasMore: messages.length === parseInt(limit),
-    },
+    data: { messages, count: messages.length, hasMore: messages.length === limit },
   });
 });
 
 /**
- * Send message with optional media
+ * Sync messages since a timestamp (offline sync)
+ */
+export const syncMessages = asyncWrapper(async (req, res) => {
+  const { chatRoomId } = req.params;
+  const since = req.query.since;
+  const limit = parseInt(req.query.limit || 50);
+  const userId = req.user.id;
+
+  const messages = await chatService.getMessagesSince({ chatRoomId, userId, since, limit });
+
+  res.status(200).json({ success: true, data: { messages, count: messages.length } });
+});
+
+/**
+ * Send a message (text or media)
  */
 export const sendMessage = asyncWrapper(async (req, res) => {
   const { chatRoomId } = req.params;
@@ -62,62 +89,11 @@ export const sendMessage = asyncWrapper(async (req, res) => {
   const userId = req.user.id;
   const files = req.files || [];
 
-  const message = await chatService.createMessage({
-    chatRoomId,
-    senderId: userId,
-    content,
-    files,
-    requestContext: req,
-  });
+  const message = await chatService.createMessage({ chatRoomId, senderId: userId, content, files });
 
-  // Emit to socket clients
-  broadcaster.broadcastMessage(chatRoomId, message);
+  broadcaster?.broadcastMessage(chatRoomId, message);
 
-  res.status(201).json({
-    success: true,
-    message: "Message sent successfully",
-    data: { message },
-  });
-});
-
-/**
- * Soft delete message
- */
-export const deleteMessage = asyncWrapper(async (req, res) => {
-  const { messageId } = req.params;
-  const userId = req.user.id;
-
-  const result = await chatService.softDeleteMessage({ messageId, userId });
-
-  // Optional: notify clients in real-time
-  if (result) {
-    broadcaster.notifyDeletedForAll(result.chatRoom.toString(), messageId);
-  }
-
-  res.status(200).json({
-    success: true,
-    message: "Message deleted successfully",
-  });
-});
-
-/**
- * Hard delete message (sender/admin)
- */
-export const deleteMessageForEveryone = asyncWrapper(async (req, res) => {
-  const { messageId } = req.params;
-  const user = req.user;
-
-  const result = await chatService.deleteMessageForEveryone({
-    user,
-    messageId,
-  });
-
-  broadcaster.notifyDeletedForAll(result.chatRoom.toString(), messageId);
-
-  res.status(200).json({
-    success: true,
-    message: "Message deleted for everyone",
-  });
+  res.status(201).json({ success: true, message: "Message sent successfully", data: { message } });
 });
 
 /**
@@ -129,52 +105,53 @@ export const markMessagesAsRead = asyncWrapper(async (req, res) => {
 
   const updatedCount = await chatService.markRead({ chatRoomId, userId });
 
-  // Notify socket clients
-  broadcaster.notifyRead(chatRoomId, userId);
+  broadcaster?.notifyRead(chatRoomId, userId);
 
-  res.status(200).json({
-    success: true,
-    message: "Messages marked as read",
-    data: { updatedCount },
-  });
+  res.status(200).json({ success: true, message: "Messages marked as read", data: { updatedCount } });
 });
 
 /**
- * Get user chat rooms
+ * Soft delete message (current user)
  */
-export const getUserChatRooms = asyncWrapper(async (req, res) => {
+export const deleteMessage = asyncWrapper(async (req, res) => {
+  const { messageId } = req.params;
   const userId = req.user.id;
-  const { limit = 20, skip = 0 } = req.query;
 
-  const chatRooms = await chatService.getUserChatRooms({
-    userId,
-    limit: parseInt(limit),
-    skip: parseInt(skip),
-  });
+  const result = await chatService.softDeleteMessage({ messageId, userId });
 
-  res.status(200).json({
-    success: true,
-    data: { chatRooms, count: chatRooms.length },
-  });
+  if (result) broadcaster?.notifyDeletedForAll(result.chatRoom.toString(), messageId);
+
+  res.status(200).json({ success: true, message: "Message deleted successfully" });
 });
 
 /**
- * Offline sync (fetch messages since timestamp)
+ * Hard delete message (sender or admin)
  */
-export const syncMessages = asyncWrapper(async (req, res) => {
+export const deleteMessageForEveryone = asyncWrapper(async (req, res) => {
+  const { messageId } = req.params;
+  const user = req.user;
+
+  const result = await chatService.deleteMessageForEveryone({ user, messageId });
+
+  broadcaster?.notifyDeletedForAll(result.chatRoom.toString(), messageId);
+
+  res.status(200).json({ success: true, message: "Message deleted for everyone" });
+});
+
+/**
+ * ===============================
+ * AES KEY ROUTE (NEW)
+ * ===============================
+ */
+
+/**
+ * Get AES key for a chat room (E2EE)
+ */
+export const getRoomKey = asyncWrapper(async (req, res) => {
   const { chatRoomId } = req.params;
-  const { since, limit = 50 } = req.query;
   const userId = req.user.id;
 
-  const messages = await chatService.getMessagesSince({
-    chatRoomId,
-    userId,
-    since,
-    limit: parseInt(limit),
-  });
+  const { aesKey } = await chatService.getAesKey({ chatRoomId, userId });
 
-  res.status(200).json({
-    success: true,
-    data: { messages, count: messages.length },
-  });
+  res.status(200).json({ success: true, data: { aesKey } });
 });

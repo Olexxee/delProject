@@ -1,31 +1,52 @@
 import { Router } from "express";
 import multer from "multer";
-import * as chatController from "../../logic/chats/chatController.js";
-import { authMiddleware } from "../../middlewares/authenticationMdw.js";
-import { validateBody } from "../../middlewares/validatorMiddleware.js";
-import { sendMessageSchema } from "../../logic/chats/chatRequest.js";
+import * as chatController from "../logic/chats/chatController.js";
+import { authMiddleware } from "../middlewares/authenticationMdw.js";
+import { validateBody } from "../middlewares/validatorMiddleware.js";
+import { sendMessageSchema } from "../logic/chats/chatRequest.js";
 
 const chatRouter = Router();
 
-// MULTER CONFIG
+/**
+ * =============================
+ * MULTER CONFIG (Memory Storage)
+ * =============================
+ */
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
   fileFilter: (req, file, cb) => {
     const allowed = ["image/jpeg", "image/png", "image/gif", "video/mp4"];
     cb(null, allowed.includes(file.mimetype));
   },
 });
 
-// AUTHENTICATION
+/**
+ * =============================
+ * AUTHENTICATION
+ * =============================
+ */
 chatRouter.use(authMiddleware);
 
-// CHAT ROOMS
+/**
+ * =============================
+ * CHAT ROOM ROUTES
+ * =============================
+ */
 chatRouter.get("/room/:contextType/:contextId", chatController.getChatRoom);
 chatRouter.get("/rooms", chatController.getUserChatRooms);
 
-// MESSAGES
+/**
+ * AES Key for end-to-end encryption
+ */
+chatRouter.get("/room/:chatRoomId/key", chatController.getRoomKey);
+
+/**
+ * =============================
+ * MESSAGES ROUTES
+ * =============================
+ */
 chatRouter.get("/room/:chatRoomId/messages", chatController.getMessages);
 chatRouter.get("/room/:chatRoomId/sync", chatController.syncMessages);
 
@@ -36,7 +57,11 @@ chatRouter.post(
   chatController.sendMessage
 );
 
-// MESSAGE DELETION
+/**
+ * =============================
+ * MESSAGE DELETION ROUTES
+ * =============================
+ */
 chatRouter.delete("/messages/:messageId", chatController.deleteMessage);
 chatRouter.delete(
   "/messages/:messageId/everyone",
