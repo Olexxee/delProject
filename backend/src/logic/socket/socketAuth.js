@@ -1,10 +1,9 @@
-import jwt from "jsonwebtoken";
 import * as userService from "../../user/userService.js";
 import {
   UnauthorizedException,
   NotFoundException,
 } from "../../lib/classes/errorClasses.js";
-import configService from "../../lib/classes/configClass.js";
+import JwtService from "../../lib/classes/jwtClass.js";
 
 export const socketAuthMiddleware = async (socket, next) => {
   try {
@@ -13,7 +12,7 @@ export const socketAuthMiddleware = async (socket, next) => {
 
     let decoded;
     try {
-      decoded = jwt.verify(token, configService.getOrThrow("JWT_SECRET"));
+      decoded = JwtService.verifyAuthenticationToken(token);
     } catch (err) {
       throw new UnauthorizedException("Invalid or expired token");
     }
@@ -24,7 +23,7 @@ export const socketAuthMiddleware = async (socket, next) => {
     socket.user = {
       id: user._id.toString(),
       email: user.email,
-      username: user.username, // optional, if useful for events
+      username: user.username,
     };
 
     next();
@@ -32,4 +31,3 @@ export const socketAuthMiddleware = async (socket, next) => {
     next(err);
   }
 };
-

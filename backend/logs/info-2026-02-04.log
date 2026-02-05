@@ -1,0 +1,253 @@
+[2026-02-04 02:54:26] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 02:54:26] INFO: 📍 Request URL:
+[2026-02-04 02:54:26] INFO: 🎫 Cookie token:
+[2026-02-04 02:54:26] INFO: 🎫 Header token:
+[2026-02-04 02:54:26] INFO: 🎫 Token being used:
+[2026-02-04 02:54:26] INFO: ✅ Token decoded:
+[2026-02-04 02:54:26] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 02:54:33] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 02:54:33] INFO: 📍 Request URL:
+[2026-02-04 02:54:33] INFO: 🎫 Cookie token:
+[2026-02-04 02:54:33] INFO: 🎫 Header token:
+[2026-02-04 02:54:33] INFO: 🎫 Token being used:
+[2026-02-04 02:54:33] INFO: ✅ Token decoded:
+[2026-02-04 02:54:33] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 02:54:33] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 02:54:33] INFO: 📍 Request URL:
+[2026-02-04 02:54:33] INFO: 🎫 Cookie token:
+[2026-02-04 02:54:33] INFO: 🎫 Header token:
+[2026-02-04 02:54:33] INFO: 🎫 Token being used:
+[2026-02-04 02:54:33] INFO: ✅ Token decoded:
+[2026-02-04 02:54:33] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 02:54:50] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 02:54:50] INFO: 📍 Request URL:
+[2026-02-04 02:54:50] INFO: 🎫 Cookie token:
+[2026-02-04 02:54:50] INFO: 🎫 Header token:
+[2026-02-04 02:54:50] INFO: 🎫 Token being used:
+[2026-02-04 02:54:50] INFO: ✅ Token decoded:
+[2026-02-04 02:54:50] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 02:54:51] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 02:54:51] INFO: 📍 Request URL:
+[2026-02-04 02:54:51] INFO: 🎫 Cookie token:
+[2026-02-04 02:54:51] INFO: 🎫 Header token:
+[2026-02-04 02:54:51] INFO: 🎫 Token being used:
+[2026-02-04 02:54:51] INFO: ✅ Token decoded:
+[2026-02-04 02:54:51] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 03:45:19] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 03:45:19] INFO: 📍 Request URL:
+[2026-02-04 03:45:19] INFO: 🎫 Cookie token:
+[2026-02-04 03:45:19] INFO: 🎫 Header token:
+[2026-02-04 03:45:19] INFO: 🎫 Token being used:
+[2026-02-04 03:45:19] INFO: ✅ Token decoded:
+[2026-02-04 03:45:19] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 03:45:19] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 03:45:19] INFO: 📍 Request URL:
+[2026-02-04 03:45:19] INFO: 🎫 Cookie token:
+[2026-02-04 03:45:19] INFO: 🎫 Header token:
+[2026-02-04 03:45:19] INFO: 🎫 Token being used:
+[2026-02-04 03:45:19] INFO: ✅ Token decoded:
+[2026-02-04 03:45:19] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 03:45:19] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 03:45:19] INFO: 📍 Request URL:
+[2026-02-04 03:45:19] INFO: 🎫 Cookie token:
+[2026-02-04 03:45:19] INFO: 🎫 Header token:
+[2026-02-04 03:45:19] INFO: 🎫 Token being used:
+[2026-02-04 03:45:19] INFO: ✅ Token decoded:
+[2026-02-04 03:45:19] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 03:49:57] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 03:49:57] INFO: 📍 Request URL:
+[2026-02-04 03:49:57] INFO: 🎫 Cookie token:
+[2026-02-04 03:49:57] INFO: 🎫 Header token:
+[2026-02-04 03:49:57] INFO: 🎫 Token being used:
+[2026-02-04 03:49:57] INFO: ✅ Token decoded:
+[2026-02-04 03:49:57] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 03:49:57] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 03:49:57] INFO: 📍 Request URL:
+[2026-02-04 03:49:57] INFO: 🎫 Cookie token:
+[2026-02-04 03:49:57] INFO: 🎫 Header token:
+[2026-02-04 03:49:57] INFO: 🎫 Token being used:
+[2026-02-04 03:49:57] INFO: ✅ Token decoded:
+[2026-02-04 03:49:57] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:01:14] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:01:14] INFO: 📍 Request URL:
+[2026-02-04 04:01:14] INFO: 🎫 Cookie token:
+[2026-02-04 04:01:14] INFO: 🎫 Header token:
+[2026-02-04 04:01:14] INFO: 🎫 Token being used:
+[2026-02-04 04:01:14] INFO: ✅ Token decoded:
+[2026-02-04 04:01:14] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:01:18] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:01:18] INFO: 📍 Request URL:
+[2026-02-04 04:01:18] INFO: 🎫 Cookie token:
+[2026-02-04 04:01:18] INFO: 🎫 Header token:
+[2026-02-04 04:01:18] INFO: 🎫 Token being used:
+[2026-02-04 04:01:18] INFO: ✅ Token decoded:
+[2026-02-04 04:01:18] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:01:18] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:01:18] INFO: 📍 Request URL:
+[2026-02-04 04:01:18] INFO: 🎫 Cookie token:
+[2026-02-04 04:01:18] INFO: 🎫 Header token:
+[2026-02-04 04:01:18] INFO: 🎫 Token being used:
+[2026-02-04 04:01:18] INFO: ✅ Token decoded:
+[2026-02-04 04:01:18] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:01:54] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:01:54] INFO: 📍 Request URL:
+[2026-02-04 04:01:54] INFO: 🎫 Cookie token:
+[2026-02-04 04:01:54] INFO: 🎫 Header token:
+[2026-02-04 04:01:54] INFO: 🎫 Token being used:
+[2026-02-04 04:01:54] INFO: ✅ Token decoded:
+[2026-02-04 04:01:54] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:01:54] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:01:54] INFO: 📍 Request URL:
+[2026-02-04 04:01:54] INFO: 🎫 Cookie token:
+[2026-02-04 04:01:54] INFO: 🎫 Header token:
+[2026-02-04 04:01:54] INFO: 🎫 Token being used:
+[2026-02-04 04:01:54] INFO: ✅ Token decoded:
+[2026-02-04 04:01:54] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:01:59] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:01:59] INFO: 📍 Request URL:
+[2026-02-04 04:01:59] INFO: 🎫 Cookie token:
+[2026-02-04 04:01:59] INFO: 🎫 Header token:
+[2026-02-04 04:01:59] INFO: 🎫 Token being used:
+[2026-02-04 04:01:59] INFO: ✅ Token decoded:
+[2026-02-04 04:01:59] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:02:00] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:02:00] INFO: 📍 Request URL:
+[2026-02-04 04:02:00] INFO: 🎫 Cookie token:
+[2026-02-04 04:02:00] INFO: 🎫 Header token:
+[2026-02-04 04:02:00] INFO: 🎫 Token being used:
+[2026-02-04 04:02:00] INFO: ✅ Token decoded:
+[2026-02-04 04:02:00] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:02:11] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:02:11] INFO: 📍 Request URL:
+[2026-02-04 04:02:11] INFO: 🎫 Cookie token:
+[2026-02-04 04:02:11] INFO: 🎫 Header token:
+[2026-02-04 04:02:11] INFO: 🎫 Token being used:
+[2026-02-04 04:02:11] INFO: ✅ Token decoded:
+[2026-02-04 04:02:11] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:02:11] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:02:11] INFO: 📍 Request URL:
+[2026-02-04 04:02:11] INFO: 🎫 Cookie token:
+[2026-02-04 04:02:11] INFO: 🎫 Header token:
+[2026-02-04 04:02:11] INFO: 🎫 Token being used:
+[2026-02-04 04:02:11] INFO: ✅ Token decoded:
+[2026-02-04 04:02:11] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:03:38] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:03:38] INFO: 📍 Request URL:
+[2026-02-04 04:03:38] INFO: 🎫 Cookie token:
+[2026-02-04 04:03:38] INFO: 🎫 Header token:
+[2026-02-04 04:03:38] INFO: 🎫 Token being used:
+[2026-02-04 04:03:38] INFO: ✅ Token decoded:
+[2026-02-04 04:03:38] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:03:38] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:03:38] INFO: 📍 Request URL:
+[2026-02-04 04:03:38] INFO: 🎫 Cookie token:
+[2026-02-04 04:03:38] INFO: 🎫 Header token:
+[2026-02-04 04:03:38] INFO: 🎫 Token being used:
+[2026-02-04 04:03:38] INFO: ✅ Token decoded:
+[2026-02-04 04:03:38] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:03:59] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:03:59] INFO: 📍 Request URL:
+[2026-02-04 04:03:59] INFO: 🎫 Cookie token:
+[2026-02-04 04:03:59] INFO: 🎫 Header token:
+[2026-02-04 04:03:59] INFO: 🎫 Token being used:
+[2026-02-04 04:03:59] INFO: ✅ Token decoded:
+[2026-02-04 04:03:59] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:04:00] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:04:00] INFO: 📍 Request URL:
+[2026-02-04 04:04:00] INFO: 🎫 Cookie token:
+[2026-02-04 04:04:00] INFO: 🎫 Header token:
+[2026-02-04 04:04:00] INFO: 🎫 Token being used:
+[2026-02-04 04:04:00] INFO: ✅ Token decoded:
+[2026-02-04 04:04:00] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:22:58] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:22:58] INFO: 📍 Request URL:
+[2026-02-04 04:22:58] INFO: 🎫 Cookie token:
+[2026-02-04 04:22:58] INFO: 🎫 Header token:
+[2026-02-04 04:22:58] INFO: 🎫 Token being used:
+[2026-02-04 04:22:58] INFO: ✅ Token decoded:
+[2026-02-04 04:22:58] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:23:06] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:23:06] INFO: 📍 Request URL:
+[2026-02-04 04:23:06] INFO: 🎫 Cookie token:
+[2026-02-04 04:23:06] INFO: 🎫 Header token:
+[2026-02-04 04:23:06] INFO: 🎫 Token being used:
+[2026-02-04 04:23:06] INFO: ✅ Token decoded:
+[2026-02-04 04:23:06] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:23:06] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:23:06] INFO: 📍 Request URL:
+[2026-02-04 04:23:06] INFO: 🎫 Cookie token:
+[2026-02-04 04:23:06] INFO: 🎫 Header token:
+[2026-02-04 04:23:06] INFO: 🎫 Token being used:
+[2026-02-04 04:23:06] INFO: ✅ Token decoded:
+[2026-02-04 04:23:06] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:23:31] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:23:31] INFO: 📍 Request URL:
+[2026-02-04 04:23:31] INFO: 🎫 Cookie token:
+[2026-02-04 04:23:31] INFO: 🎫 Header token:
+[2026-02-04 04:23:31] INFO: 🎫 Token being used:
+[2026-02-04 04:23:31] INFO: ✅ Token decoded:
+[2026-02-04 04:23:31] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:23:31] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:23:31] INFO: 📍 Request URL:
+[2026-02-04 04:23:31] INFO: 🎫 Cookie token:
+[2026-02-04 04:23:31] INFO: 🎫 Header token:
+[2026-02-04 04:23:31] INFO: 🎫 Token being used:
+[2026-02-04 04:23:31] INFO: ✅ Token decoded:
+[2026-02-04 04:23:31] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:30:31] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:30:31] INFO: 📍 Request URL:
+[2026-02-04 04:30:31] INFO: 🎫 Cookie token:
+[2026-02-04 04:30:31] INFO: 🎫 Header token:
+[2026-02-04 04:30:31] INFO: 🎫 Token being used:
+[2026-02-04 04:30:31] INFO: ✅ Token decoded:
+[2026-02-04 04:30:31] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:30:31] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 04:30:31] INFO: 📍 Request URL:
+[2026-02-04 04:30:31] INFO: 🎫 Cookie token:
+[2026-02-04 04:30:31] INFO: 🎫 Header token:
+[2026-02-04 04:30:31] INFO: 🎫 Token being used:
+[2026-02-04 04:30:31] INFO: ✅ Token decoded:
+[2026-02-04 04:30:31] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 04:36:25] INFO: Firebase Admin initialized (Base64)
+[2026-02-04 04:36:28] INFO: ☁️ Cloudinary initialized
+[2026-02-04 04:58:55] INFO: Firebase Admin initialized (Base64)
+[2026-02-04 04:58:56] INFO: ☁️ Cloudinary initialized
+[2026-02-04 05:02:24] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 05:02:24] INFO: 📍 Request URL:
+[2026-02-04 05:02:24] INFO: 🎫 Cookie token:
+[2026-02-04 05:02:24] INFO: 🎫 Header token:
+[2026-02-04 05:02:24] INFO: 🎫 Token being used:
+[2026-02-04 05:02:24] INFO: ✅ Token decoded:
+[2026-02-04 05:02:24] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 05:02:28] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 05:02:28] INFO: 📍 Request URL:
+[2026-02-04 05:02:28] INFO: 🎫 Cookie token:
+[2026-02-04 05:02:28] INFO: 🎫 Header token:
+[2026-02-04 05:02:28] INFO: 🎫 Token being used:
+[2026-02-04 05:02:28] INFO: ✅ Token decoded:
+[2026-02-04 05:02:28] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 05:02:29] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 05:02:29] INFO: 📍 Request URL:
+[2026-02-04 05:02:29] INFO: 🎫 Cookie token:
+[2026-02-04 05:02:29] INFO: 🎫 Header token:
+[2026-02-04 05:02:29] INFO: 🎫 Token being used:
+[2026-02-04 05:02:29] INFO: ✅ Token decoded:
+[2026-02-04 05:02:29] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 05:06:03] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 05:06:03] INFO: 📍 Request URL:
+[2026-02-04 05:06:03] INFO: 🎫 Cookie token:
+[2026-02-04 05:06:03] INFO: 🎫 Header token:
+[2026-02-04 05:06:03] INFO: 🎫 Token being used:
+[2026-02-04 05:06:03] INFO: ✅ Token decoded:
+[2026-02-04 05:06:03] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 05:06:03] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-04 05:06:03] INFO: 📍 Request URL:
+[2026-02-04 05:06:03] INFO: 🎫 Cookie token:
+[2026-02-04 05:06:03] INFO: 🎫 Header token:
+[2026-02-04 05:06:03] INFO: 🎫 Token being used:
+[2026-02-04 05:06:03] INFO: ✅ Token decoded:
+[2026-02-04 05:06:03] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-04 05:06:12] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-04 05:06:52] INFO: [Chat] User 696f7dacc0b566ce76cfe822 disconnected
+[2026-02-04 05:42:15] INFO: Firebase Admin initialized (Base64)
+[2026-02-04 05:42:19] INFO: ☁️ Cloudinary initialized

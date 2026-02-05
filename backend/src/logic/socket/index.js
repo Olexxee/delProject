@@ -14,6 +14,10 @@ export const initSocketServer = (httpServer) => {
   io.use(socketAuthMiddleware);
 
   io.on("connection", (socket) => {
+    console.log("New connection attempt:", socket.handshake.auth);
+  });
+
+  io.on("connection", (socket) => {
     const userId = socket.user.id;
 
     registerSocket(userId, socket.id);

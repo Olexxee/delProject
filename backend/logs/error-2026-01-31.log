@@ -1,0 +1,4 @@
+[2026-01-31 07:21:28] ERROR: ❌ Authentication failed:
+[2026-01-31 07:21:28] ERROR: 🔐 === END AUTH MIDDLEWARE ===
+[2026-01-31 07:44:59] ERROR: [Cloudinary] Upload failed Media validation failed: type: `avatar` is not a valid enum value for path `type`.
+[2026-01-31 08:03:22] ERROR: [Notification] Recipient undefined not found

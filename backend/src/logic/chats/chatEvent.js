@@ -5,9 +5,8 @@ import logger from "../../lib/logger.js";
 import ChatBroadcaster from "../../logic/chats/chatBroadcaster.js";
 
 /**
- * Socket-safe async wrapper with ACK support
+ * Safe async handler with ACK support
  */
-
 const safeHandler =
   (handler) =>
   async (payload = {}, ack) => {
@@ -15,27 +14,34 @@ const safeHandler =
       const result = await handler(payload);
       ack?.({ success: true, ...result });
     } catch (err) {
-      logger.error("[Socket Chat Error]", err);
+      logger.error(`[Socket Chat Error]`, err);
       ack?.({ success: false, error: err.message });
     }
   };
 
+/**
+ * Register chat-related socket events
+ */
 export const registerChatEvents = (io, socket) => {
   const userId = socket.user.id;
   const broadcaster = new ChatBroadcaster(io);
 
-  /**
-   * Join chat room
-   */
+  // -----------------------------
+  // JOIN ROOM
+  // -----------------------------
   socket.on(
     ChatEvents.JOIN,
     safeHandler(async ({ chatRoomId, limit = 50 }) => {
+      // Fetch room for access check
       await ensureChatAccess(userId, chatRoomId);
+
       socket.join(chatRoomId);
 
+      // Mark delivered and notify
       await chatService.markDelivered({ chatRoomId, userId });
       broadcaster.notifyDelivered(chatRoomId, userId);
 
+      // Fetch latest messages
       const messages = await chatService.getMessages({
         chatRoomId,
         userId,
@@ -45,55 +51,59 @@ export const registerChatEvents = (io, socket) => {
 
       logger.info(`[Chat] User ${userId} joined room ${chatRoomId}`);
       return { messages };
-    })
+    }),
   );
 
-  /**
-   * Send message
-   */
+  // -----------------------------
+  // SEND MESSAGE
+  // -----------------------------
   socket.on(
     ChatEvents.SEND,
     safeHandler(async ({ chatRoomId, content, mediaIds = [] }) => {
       await ensureChatAccess(userId, chatRoomId);
 
+      // Create message using new ChatService API
       const message = await chatService.createMessage({
         chatRoomId,
         senderId: userId,
         content,
-        files: mediaIds,
-        requestContext: {},
+        mediaIds,
       });
 
+      // Broadcast encrypted payload
       broadcaster.broadcastMessage(chatRoomId, message);
+
       return { message };
-    })
+    }),
   );
 
-  /**
-   * Mark messages as read
-   */
+  // -----------------------------
+  // MARK AS READ
+  // -----------------------------
   socket.on(
     ChatEvents.READ,
     safeHandler(async ({ chatRoomId }) => {
       await chatService.markRead({ chatRoomId, userId });
       broadcaster.notifyRead(chatRoomId, userId);
-    })
+      return {}; // ensure ACK is called
+    }),
   );
 
-  /**
-   * Soft delete message
-   */
+  // -----------------------------
+  // SOFT DELETE MESSAGE
+  // -----------------------------
   socket.on(
     ChatEvents.DELETE_SOFT,
     safeHandler(async ({ messageId }) => {
       await chatService.softDeleteMessage({ messageId, userId });
       logger.info(`[Chat] User ${userId} soft-deleted message ${messageId}`);
-    })
+      return {};
+    }),
   );
 
-  /**
-   * Hard delete message
-   */
+  // -----------------------------
+  // HARD DELETE MESSAGE
+  // -----------------------------
   socket.on(
     ChatEvents.DELETE_HARD,
     safeHandler(async ({ messageId }) => {
@@ -103,33 +113,36 @@ export const registerChatEvents = (io, socket) => {
       });
       broadcaster.notifyDeletedForAll(message.chatRoom.toString(), messageId);
       logger.info(
-        `[Chat] User ${userId} deleted message ${messageId} for everyone`
+        `[Chat] User ${userId} deleted message ${messageId} for everyone`,
       );
-    })
+      return {};
+    }),
   );
 
-  /**
-   * Typing indicator
-   */
+  // -----------------------------
+  // TYPING INDICATOR
+  // -----------------------------
   socket.on(
     ChatEvents.USER_TYPING,
     safeHandler(async ({ chatRoomId, isTyping }) => {
       await ensureChatAccess(userId, chatRoomId);
       broadcaster.notifyTyping(chatRoomId, userId, isTyping);
-    })
+      return {};
+    }),
   );
 
-  /**
-   * Leave chat room
-   */
-  socket.on(ChatEvents.LEAVE, ({ chatRoomId }) => {
+  // -----------------------------
+  // LEAVE ROOM
+  // -----------------------------
+  socket.on(ChatEvents.LEAVE, ({ chatRoomId }, ack) => {
     socket.leave(chatRoomId);
     logger.info(`[Chat] User ${userId} left room ${chatRoomId}`);
+    ack?.({ success: true });
   });
 
-  /**
-   * Disconnect
-   */
+  // -----------------------------
+  // DISCONNECT
+  // -----------------------------
   socket.on("disconnect", () => {
     logger.info(`[Chat] User ${userId} disconnected`);
   });

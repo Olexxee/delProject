@@ -1,15 +1,21 @@
 import ChatRoom from "../../models/chatRoomSchema.js";
-import { Message } from "../../models/messageSchema.js";
+import Message from "../../models/messageSchema.js";
 import { ensureChatAccess } from "./chatGuard.js";
-import { encrypt } from "../../lib/encryption.js";
+import * as membershipService from "../../groupLogic/membershipService.js";
 import {
   NotFoundException,
   BadRequestError,
+  ForbiddenError,
 } from "../../lib/classes/errorClasses.js";
-
 import notificationService from "../notifications/notificationService.js";
 import { getSocketsByUserId } from "../socket/socketRegistry.js";
 
+/**
+ * =========================
+ * ChatService
+ * Handles encrypted messaging, message retrieval, and offline notifications.
+ * =========================
+ */
 class ChatService {
   /**
    * =========================
@@ -20,7 +26,7 @@ class ChatService {
     const room = await ChatRoom.findById(chatRoomId);
     if (!room) throw new NotFoundException("Chat room not found");
 
-    await ensureChatAccess(userId, chatRoomId);
+    await ensureChatAccess({ chatRoom: room, userId });
 
     const messages = await Message.find({
       chatRoom: chatRoomId,
@@ -32,8 +38,6 @@ class ChatService {
       .limit(limit)
       .populate("sender", "username firstName lastName profilePicture");
 
-    // IMPORTANT:
-    // No decryption here. Messages are returned exactly as stored.
     return messages;
   }
 
@@ -49,27 +53,22 @@ class ChatService {
     mediaIds = [],
     broadcaster = null,
   }) {
-    if (!content?.trim() && mediaIds.length === 0) {
+    if ((!content || !content.trim()) && mediaIds.length === 0) {
       throw new BadRequestError("Message must have content or media");
     }
 
-    const room = await ChatRoom.findById(chatRoomId)
-      .select("+aesKey participants name");
+    const room = await ChatRoom.findById(chatRoomId).select(
+      "+aesKey participants name",
+    );
     if (!room) throw new NotFoundException("Chat room not found");
 
     await ensureChatAccess(senderId, chatRoomId);
 
-    // Encrypt at rest (server never decrypts)
-    const encrypted = content?.trim()
-      ? encrypt(content.trim(), room.aesKey)
-      : null;
-
+    // Create message (encryption handled in schema pre-save)
     const message = await Message.create({
       chatRoom: chatRoomId,
       sender: senderId,
-      encryptedContent: encrypted?.cipherText ?? null,
-      iv: encrypted?.iv ?? null,
-      authTag: encrypted?.authTag ?? null,
+      content: content ? content.trim() : null,
       media: mediaIds,
       deliveredTo: [senderId],
       readBy: [senderId],
@@ -77,25 +76,21 @@ class ChatService {
 
     await ChatRoom.updateOne(
       { _id: chatRoomId },
-      { lastMessageAt: new Date() }
+      { lastMessageAt: new Date() },
     );
 
     const populatedMessage = await message.populate(
       "sender",
-      "username firstName lastName profilePicture"
+      "username firstName lastName profilePicture",
     );
 
-    // Broadcast encrypted payload only
+    // Broadcast encrypted payload
     if (broadcaster) {
       broadcaster.broadcastMessage(chatRoomId, populatedMessage);
     }
 
     // Notify offline participants
-    await this.#notifyOfflineParticipants(
-      room,
-      senderId,
-      chatRoomId
-    );
+    await this.#notifyOfflineParticipants(room, senderId, chatRoomId);
 
     return populatedMessage;
   }
@@ -111,8 +106,7 @@ class ChatService {
         .map(String)
         .filter(
           (id) =>
-            id !== senderId.toString() &&
-            getSocketsByUserId(id).length === 0
+            id !== senderId.toString() && getSocketsByUserId(id).length === 0,
         );
 
       if (!offlineUsers.length) return;
@@ -126,20 +120,31 @@ class ChatService {
             title: room.name || "New Message",
             message: "🔒 You have a new encrypted message",
             payload: { chatRoomId },
-          })
-        )
+          }),
+        ),
       );
     } catch (err) {
       console.error("[ChatService Notification Error]", err);
     }
   }
 
+  /**
+   * =========================
+   * GET AES KEY
+   * =========================
+   */
   async getAesKey({ chatRoomId, userId }) {
-    const room = await ChatRoom.findById(chatRoomId).select("+aesKey participants");
+    const room = await ChatRoom.findById(chatRoomId).select("+aesKey");
     if (!room) throw new NotFoundException("Chat room not found");
 
-    // Access guard
-    await ensureChatAccess(userId, chatRoomId);
+    // Context-based access control for group chats
+    if (room.contextType === "group") {
+      const membership = await membershipService.findMembership({
+        userId,
+        groupId: room.contextId,
+      });
+      if (!membership) throw new ForbiddenError("Not a member of this group");
+    }
 
     return { aesKey: room.aesKey };
   }

@@ -10,13 +10,18 @@ const mediaSchema = new mongoose.Schema(
 
     type: {
       type: String,
-      enum: ["profile", "chat", "event", "post", "catalog", "store", "ask", "timeline"],
+      enum: ["profile", "chat", "group", "post", "catalog", "store", "ask", "timeline"],
       required: true,
     },
 
     url: {
       type: String,
       required: true,
+    },
+
+    role: {
+      type: String,
+      enum: ["avatar", "banner", "cover", "attachment"],
     },
 
     storageProvider: {

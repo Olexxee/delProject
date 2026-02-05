@@ -1,58 +1,50 @@
+import mongoose from "mongoose";
 import ChatRoom from "../../models/chatRoomSchema.js";
-import * as membershipService from "../../groupLogic/membershipService.js";
-import {
-  NotFoundException,
-  ForbiddenError,
-} from "../../lib/classes/errorClasses.js";
-import {generateRoomKey} from "./chatRoomKeyService.js";
-
-
+import { generateRoomKey } from "./chatRoomKeyService.js";
 
 /**
- * Get or create chat room for a context (group / direct / event)
+ * Helper to convert to ObjectId
+ */
+const objectId = (id) => mongoose.Types.ObjectId(id);
+
+/**
+ * Get an existing chat room or create a new one for a given context
+ * @param {Object} params
+ * @param {"group"|"direct"} params.contextType
+ * @param {string} params.contextId
+ * @param {string} params.userId
+ * @returns {Promise<Object>} ChatRoom document
  */
 export const getOrCreateChatRoom = async ({
   contextType,
   contextId,
   userId,
 }) => {
-  // 1️⃣ Validate access (groups must enforce membership)
-  if (contextType === "group") {
-    const membership = await membershipService.findMembership({
-      userId,
-      groupId: contextId,
-    });
-
-    if (!membership) {
-      throw new ForbiddenError("You are not a member of this group");
-    }
+  if (!["group", "direct"].includes(contextType)) {
+    throw new Error(`Invalid contextType: ${contextType}`);
   }
 
-  // 2️⃣ Find existing room (idempotent)
-  let room = await ChatRoom.findOne({
-    contextType,
-    contextId,
-  });
+  // Try to find an existing room
+  let room = await ChatRoom.findOne({ contextType, contextId });
 
-  // 3️⃣ Create if missing
-  if (!room) {
-    room = await ChatRoom.create({
-      contextType,
-      contextId,
-      participants: [userId],
-      aesKey: generateRoomKey().toString("hex"),
-      encryptionVersion: 1,
-      lastMessageAt: new Date(),
-    });
-
+  if (room) {
+    // Atomically add user if not already in participants
+    await ChatRoom.updateOne(
+      { _id: room._id },
+      { $addToSet: { participants: objectId(userId) } },
+    );
     return room;
   }
 
-  // 4️⃣ Ensure participant is added (group joins, late entry)
-  if (!room.participants.includes(userId)) {
-    room.participants.push(userId);
-    await room.save();
-  }
+  // Create a new chat room
+  room = await ChatRoom.create({
+    contextType,
+    contextId,
+    participants: [objectId(userId)],
+    aesKey: generateRoomKey().toString("hex"),
+    encryptionVersion: 1,
+    lastMessageAt: new Date(),
+  });
 
   return room;
 };

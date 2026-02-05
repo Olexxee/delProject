@@ -34,13 +34,13 @@ chatRouter.use(authMiddleware);
  * CHAT ROOM ROUTES
  * =============================
  */
-chatRouter.get("/room/:contextType/:contextId", chatController.getChatRoom);
+chatRouter.get("/context/:contextType/:contextId", chatController.getChatRoom);
 chatRouter.get("/rooms", chatController.getUserChatRooms);
 
 /**
  * AES Key for end-to-end encryption
  */
-chatRouter.get("/room/:chatRoomId/key", chatController.getRoomKey);
+chatRouter.get("/room/:chatRoomId/key", chatController.getAesKey);
 
 /**
  * =============================

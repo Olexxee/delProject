@@ -6,34 +6,34 @@
     "auditLog": "logs\\.264c4e8e5c417017cb808b2c1974d57eea1a91fe-audit.json",
     "files": [
         {
-            "date": 1769082390578,
-            "name": "logs\\error-2026-01-22.log",
-            "hash": "119eece8a22057e7abedd40efaaaa126d16668c0947566c3607056ca774daf12"
+            "date": 1769778567796,
+            "name": "logs\\error-2026-01-30.log",
+            "hash": "ca615a77fdc1208139efe0256189d1073992d90764aee8c7d26f81350f3dc95b"
         },
         {
-            "date": 1769168859541,
-            "name": "logs\\error-2026-01-23.log",
-            "hash": "fe783e8cb1681acb39a357f0b613a9eb1de0af3f7ab5bbf0de8267b8a1d56bd7"
+            "date": 1769872022266,
+            "name": "logs\\error-2026-01-31.log",
+            "hash": "3d567ac0923e4ea5aeb7e93525104bd96311718f1ef7f5d0b667e49d6d5e89a2"
         },
         {
-            "date": 1769267914177,
-            "name": "logs\\error-2026-01-24.log",
-            "hash": "21ca6abb5629559b51a43a0265f43d183ed953cf9968daf77f1db8afc754db40"
+            "date": 1770037333799,
+            "name": "logs\\error-2026-02-02.log",
+            "hash": "a3bafc2329db406a3638bb7b620358e99b14d1a7bf1859f4ed7c0709dc5ea285"
         },
         {
-            "date": 1769332205443,
-            "name": "logs\\error-2026-01-25.log",
-            "hash": "e806c5e35f512fa372d4a64b5173e76874754e78443be6205d98f44d936dfb11"
+            "date": 1770120725433,
+            "name": "logs\\error-2026-02-03.log",
+            "hash": "1f9215a4851b44509a19d9d27f8249430c071f869a171ca26da5a71165054fed"
         },
         {
-            "date": 1769432275549,
-            "name": "logs\\error-2026-01-26.log",
-            "hash": "8efc960705c0f80cfc1600b9eb4fb3df1d6073d4b961d4d519d444df55990962"
+            "date": 1770208584123,
+            "name": "logs\\error-2026-02-04.log",
+            "hash": "b31e4ca343cf32b3491f7c3cdb798fc654234a81dcdd593044b486dc9813fd4c"
         },
         {
-            "date": 1769511686173,
-            "name": "logs\\error-2026-01-27.log",
-            "hash": "ceb50843881e015caf9a7dd6e6870eead47be6809b738e02d53018222a0e626c"
+            "date": 1770301241556,
+            "name": "logs\\error-2026-02-05.log",
+            "hash": "8dd82b0ecfcdbf4290f30ca2fda557c5370903d60b7976d5e6e55dff7a7965d7"
         }
     ],
     "hashType": "sha256"

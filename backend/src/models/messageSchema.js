@@ -1,75 +1,42 @@
 import mongoose from "mongoose";
+import { encrypt } from "../lib/encryption.js";
+import ChatRoom from "./chatRoomSchema.js";
 
-export const messageSchema = new mongoose.Schema(
+const messageSchema = new mongoose.Schema(
   {
     chatRoom: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "ChatRoom",
       required: true,
-      index: true,
     },
-
     sender: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
-
-    encryptedContent: {
-      type: String,
-      required: true,
-    },
-
-    iv: {
-      type: String,
-      required: true,
-    },
-
-    authTag: {
-      type: String,
-      required: true,
-    },
-
-    media: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Media",
-      },
-    ],
-
-    deliveredTo: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
-
-    readBy: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
-
-    deletedFor: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
-
-    isDeleted: {
-      type: Boolean,
-      default: false,
-    },
+    encryptedContent: { type: String },
+    iv: { type: String },
+    authTag: { type: String },
+    media: [{ type: String }], // media IDs
+    deliveredTo: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true },
 );
 
-// Indexes for performance
-messageSchema.index({ chatRoom: 1, createdAt: -1 });
-messageSchema.index({ chatRoom: 1, deletedFor: 1 });
+export default mongoose.model("Message", messageSchema);
 
-export const Message = mongoose.model("Message", messageSchema);
+// Pre-save: encrypt content
+messageSchema.pre("save", async function (next) {
+  if (this.isNew && this.encryptedContent == null && this.content) {
+    const room = await ChatRoom.findById(this.chatRoom).select("+aesKey");
+    if (!room) throw new Error("Chat room not found");
+
+    const encrypted = encrypt(this.content, room.aesKey);
+    this.encryptedContent = encrypted.cipherText;
+    this.iv = encrypted.iv;
+    this.authTag = encrypted.authTag;
+    this.content = undefined; // remove plaintext
+  }
+  next();
+});

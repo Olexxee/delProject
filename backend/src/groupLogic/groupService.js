@@ -2,14 +2,15 @@ import * as groupDb from "./gSchemaService.js";
 import * as membershipService from "./membershipService.js";
 import * as membershipCrud from "./membershipSchemaService.js";
 import * as userService from "../user/userService.js";
+import { serializeGroup } from "../lib/serializeUser.js";
 import NotificationService from "../logic/notifications/notificationService.js";
 import { NotificationTypes } from "../logic/notifications/notificationTypes.js";
 import { getEmailTemplate } from "../logic/notifications/emailTemplates.js";
 import configService from "../lib/classes/configClass.js";
-import ChatRoom from "../models/chatRoomSchema.js";
-import { Message } from "../models/messageSchema.js";
-
+import Message from "../models/messageSchema.js";
+import Group from "./groupSchema.js";
 import { generateRoomKey } from "../logic/chats/chatRoomKeyService.js";
+import { getOrCreateChatRoom } from "../logic/chats/chatRoomService.js";
 import {
   BadRequestError,
   ConflictException,
@@ -17,20 +18,20 @@ import {
   ForbiddenError,
 } from "../lib/classes/errorClasses.js";
 
-// GET GROUP BY NAME
+/* =====================================================
+   GET GROUP
+===================================================== */
+
 export const getGroupByName = async ({ name }) => {
   const group = await groupDb.findGroupByName(name);
-
-  if (!group) {
-    throw new NotFoundException("Group not found");
-  }
-
+  if (!group) throw new NotFoundException("Group not found");
   return group;
 };
 
-// ==================================================
-// CREATE GROUP WITH CHAT ROOM & AES KEY
-// ==================================================
+/* =====================================================
+   CREATE GROUP (MEMBERSHIP-DRIVEN CHAT)
+===================================================== */
+
 export const createGroup = async ({
   userId,
   name,
@@ -38,21 +39,19 @@ export const createGroup = async ({
   avatar,
   chatBroadcaster,
 }) => {
-  // 1️⃣ Fetch user
+  // 1️⃣ Validate user
   const user = await userService.findUserById(userId);
   if (!user) throw new NotFoundException("User not found");
 
-  // 2️⃣ Check duplicate group name
+  // 2️⃣ Prevent duplicate group names
   const existingGroup = await groupDb.findGroupByName(name);
   if (existingGroup) {
     throw new ConflictException("A group with this name already exists");
   }
 
-  // 3️⃣ Generate encryption key
   const aesKey = generateRoomKey();
 
-  // 4️⃣ Create group
-  const group = await groupDb.createGroup({
+  let group = await groupDb.createGroup({
     name,
     privacy,
     avatar,
@@ -61,23 +60,8 @@ export const createGroup = async ({
     aesKey,
   });
 
-  if (!group) {
-    throw new BadRequestError("Failed to create group");
-  }
+  if (!group) throw new BadRequestError("Failed to create group");
 
-  // 5️⃣ Create chat room
-  const chatRoom = await ChatRoom.create({
-    contextType: "group",
-    contextId: group._id,
-    aesKey,
-    createdAt: new Date(),
-  });
-
-  // 6️⃣ Link chat room
-  group.chatRoom = chatRoom._id;
-  await group.save();
-
-  // 7️⃣ Create membership
   await membershipService.createMembership({
     userId: user._id,
     groupId: group._id,
@@ -85,7 +69,21 @@ export const createGroup = async ({
     status: "active",
   });
 
-  // 8️⃣ Notify creator
+  const chatRoom = await getOrCreateChatRoom({
+    contextType: "group",
+    contextId: group._id,
+    userId: user._id,
+  });
+
+  group.chatRoom = chatRoom._id;
+  await group.save();
+
+  group = await group.populate("avatar").populate("createdBy");
+
+  user.groups = user.groups || [];
+  user.groups.push(group._id);
+  await user.save();
+
   await NotificationService.send({
     recipient: user._id,
     sender: "system",
@@ -103,7 +101,6 @@ export const createGroup = async ({
     },
   });
 
-  // 9️⃣ Broadcast system message
   if (chatBroadcaster) {
     chatBroadcaster.broadcastMessage(group._id, {
       system: true,
@@ -113,12 +110,24 @@ export const createGroup = async ({
     });
   }
 
-  return { group, chatRoom };
+  const serializedGroup = serializeGroup(group);
+
+  return {
+    group: serializedGroup,
+    chatRoom,
+    user: {
+      ...user.toObject(),
+      groups: await Group.find({ _id: { $in: user.groups } })
+        .populate("avatar")
+        .then((gs) => gs.map(serializeGroup)),
+    },
+  };
 };
 
-// ==================================================
-// UPDATE GROUP MEDIA (AVATAR/BANNER)
-// ==================================================
+/* =====================================================
+   UPDATE GROUP MEDIA
+===================================================== */
+
 export const updateGroupMedia = async ({
   groupId,
   userId,
@@ -139,9 +148,10 @@ export const updateGroupMedia = async ({
   return group;
 };
 
-// ==================================================
-// JOIN GROUP BY INVITE
-// ==================================================
+/* =====================================================
+   JOIN GROUP
+===================================================== */
+
 export const joinGroupByInvite = async (joinCode, userId) => {
   const group = await groupDb.findGroupByJoinCode(joinCode);
   if (!group) throw new NotFoundException("Invalid invite link or group");
@@ -150,7 +160,10 @@ export const joinGroupByInvite = async (joinCode, userId) => {
     userId,
     groupId: group._id,
   });
-  if (existing) throw new ConflictException("You are already a member");
+
+  if (existing) {
+    throw new ConflictException("You are already a member");
+  }
 
   return membershipService.createMembership({
     userId,
@@ -160,15 +173,19 @@ export const joinGroupByInvite = async (joinCode, userId) => {
   });
 };
 
-// ==================================================
-// LEAVE GROUP
-// ==================================================
+/* =====================================================
+   LEAVE GROUP
+===================================================== */
+
 export const leaveGroup = async (userId, groupId) => {
   const membership = await membershipService.findMembership({
     userId,
     groupId,
   });
-  if (!membership) throw new NotFoundException("You are not a member");
+
+  if (!membership) {
+    throw new NotFoundException("You are not a member");
+  }
 
   if (membership.role === "admin") {
     throw new ForbiddenError(
@@ -180,14 +197,16 @@ export const leaveGroup = async (userId, groupId) => {
   return true;
 };
 
-// ==================================================
-// KICK USER
-// ==================================================
+/* =====================================================
+   KICK MEMBER
+===================================================== */
+
 export const kickUserFromGroup = async ({ adminId, groupId, targetUserId }) => {
   const adminMembership = await membershipService.findMembership({
     userId: adminId,
     groupId,
   });
+
   if (!adminMembership || adminMembership.role !== "admin") {
     throw new ForbiddenError("Only admins can remove users");
   }
@@ -196,15 +215,23 @@ export const kickUserFromGroup = async ({ adminId, groupId, targetUserId }) => {
     userId: targetUserId,
     groupId,
   });
-  if (!targetMembership) throw new NotFoundException("Target user not found");
 
-  await membershipService.removeMembership({ userId: targetUserId, groupId });
+  if (!targetMembership) {
+    throw new NotFoundException("Target user not found");
+  }
+
+  await membershipService.removeMembership({
+    userId: targetUserId,
+    groupId,
+  });
+
   return true;
 };
 
-// ==================================================
-// CHANGE MEMBER ROLE
-// ==================================================
+/* =====================================================
+   CHANGE MEMBER ROLE
+===================================================== */
+
 export const changeMemberRole = async ({
   adminId,
   groupId,
@@ -215,6 +242,7 @@ export const changeMemberRole = async ({
     userId: adminId,
     groupId,
   });
+
   if (!adminMembership || adminMembership.role !== "admin") {
     throw new ForbiddenError("Only admins can change roles");
   }
@@ -224,18 +252,23 @@ export const changeMemberRole = async ({
     { role: newRole },
   );
 
-  if (!updated) throw new BadRequestError("Failed to update role");
+  if (!updated) {
+    throw new BadRequestError("Failed to update role");
+  }
+
   return updated;
 };
 
-// ==================================================
-// GENERATE INVITE LINK
-// ==================================================
+/* =====================================================
+   INVITE LINK
+===================================================== */
+
 export const generateInviteLink = async ({ adminId, groupId }) => {
   const adminMembership = await membershipService.findMembership({
     userId: adminId,
     groupId,
   });
+
   if (!adminMembership || adminMembership.role !== "admin") {
     throw new ForbiddenError("Only admins can generate invite links");
   }
@@ -244,6 +277,10 @@ export const generateInviteLink = async ({ adminId, groupId }) => {
   return `${configService.getBaseUrl()}/groups/join/${inviteCode}`;
 };
 
+/* =====================================================
+   USER GROUPS WITH LAST MESSAGE
+===================================================== */
+
 export const getUserGroupsWithLastMessage = async ({
   userId,
   page = 1,
@@ -251,24 +288,25 @@ export const getUserGroupsWithLastMessage = async ({
 }) => {
   const skip = (page - 1) * limit;
 
-  // 1️⃣ Fetch memberships for the user
+  // 1️⃣ Fetch active memberships
   const memberships = await membershipCrud.findGroupsByUser(
     { userId, status: "active" },
     { skip, limit },
   );
+
   if (!memberships.length) return [];
 
   const groupIds = memberships.map((m) => m.groupId);
 
-  // 2️⃣ Fetch groups and populate chatRoom
+  // 2️⃣ Fetch groups with chatRoom populated
   const groups = await groupDb.findGroupsByIds(groupIds, {
     populateChatRoom: true,
   });
 
-  // 3️⃣ Map chatRoom IDs
+  // 3️⃣ Collect chatRoom IDs
   const chatRoomIds = groups.map((g) => g.chatRoom?._id).filter(Boolean);
 
-  // 4️⃣ Fetch last messages per chatRoom
+  // 4️⃣ Fetch last messages
   const lastMessages = chatRoomIds.length
     ? await Message.aggregate([
         { $match: { chatRoom: { $in: chatRoomIds } } },
@@ -281,7 +319,7 @@ export const getUserGroupsWithLastMessage = async ({
     lastMessages.map((m) => [m._id.toString(), m.message]),
   );
 
-  // 5️⃣ Assemble final payload
+  // 5️⃣ Assemble response
   return groups.map((group) => {
     const chatRoom = group.chatRoom || null;
     const lastMessage = chatRoom

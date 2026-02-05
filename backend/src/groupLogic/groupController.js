@@ -3,10 +3,12 @@ import { asyncWrapper } from "../lib/utils.js";
 import { ValidatorClass } from "../lib/classes/validatorClass.js";
 import { createGroupSchema } from "./groupRequestSchema.js";
 import { processUploadedMedia } from "../middlewares/processUploadedImages.js";
-import { ValidationException, NotFoundException } from "../lib/classes/errorClasses.js";
+import {
+  ValidationException,
+  NotFoundException,
+} from "../lib/classes/errorClasses.js";
 
 const validator = new ValidatorClass();
-
 
 // GET GROUP BY NAME
 export const getGroupByName = asyncWrapper(async (req, res) => {
@@ -24,20 +26,25 @@ export const getGroupByName = asyncWrapper(async (req, res) => {
 // CREATE GROUP
 // ==================================================
 export const createGroup = asyncWrapper(async (req, res) => {
-  // 1️⃣ Validate request body
   const { errors, value } = validator.validate(createGroupSchema, req.body);
   if (errors) throw new ValidationException(errors);
 
-  // 3️⃣ Process avatar
+  if (!req.files?.avatar) {
+    throw new Error("Avatar file is required");
+  }
+
+  const avatarFiles = req.files?.avatar;
+
   const [avatarMedia] = await processUploadedMedia(
-    req.files.avatar,
-    "group-avatar",
+    avatarFiles,
+    "group",
     req.user,
     {
+      role: "avatar",
       resizeWidth: 500,
       resizeHeight: 500,
       minCount: 1,
-    }
+    },
   );
 
   // 4️⃣ Delegate to service
@@ -68,20 +75,30 @@ export const updateGroupMedia = asyncWrapper(async (req, res) => {
   const mediaResults = {};
 
   if (req.files.avatar) {
-    const [avatarMedia] = await processUploadedMedia(req.files.avatar, "group-avatar", user, {
-      resizeWidth: 1080,
-      resizeHeight: 1080,
-      minCount: 0,
-    });
+    const [avatarMedia] = await processUploadedMedia(
+      req.files.avatar,
+      "group-avatar",
+      user,
+      {
+        resizeWidth: 1080,
+        resizeHeight: 1080,
+        minCount: 0,
+      },
+    );
     mediaResults.avatarMediaId = avatarMedia._id;
   }
 
   if (req.files.banner) {
-    const [bannerMedia] = await processUploadedMedia(req.files.banner, "group-banner", user, {
-      resizeWidth: 1920,
-      resizeHeight: 600,
-      minCount: 0,
-    });
+    const [bannerMedia] = await processUploadedMedia(
+      req.files.banner,
+      "group-banner",
+      user,
+      {
+        resizeWidth: 1920,
+        resizeHeight: 600,
+        minCount: 0,
+      },
+    );
     mediaResults.bannerMediaId = bannerMedia._id;
   }
 
@@ -102,7 +119,10 @@ export const updateGroupMedia = asyncWrapper(async (req, res) => {
 // JOIN GROUP
 // ==================================================
 export const joinGroupByInvite = asyncWrapper(async (req, res) => {
-  const joined = await groupService.joinGroupByInvite(req.params.joinCode, req.user._id);
+  const joined = await groupService.joinGroupByInvite(
+    req.params.joinCode,
+    req.user._id,
+  );
 
   res.status(200).json({
     success: true,
@@ -172,7 +192,6 @@ export const generateInviteLink = asyncWrapper(async (req, res) => {
     message: "Invite link generated",
   });
 });
-
 
 export const getMyGroups = asyncWrapper(async (req, res) => {
   const userId = req.user.id;

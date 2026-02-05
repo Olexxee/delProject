@@ -17,8 +17,9 @@ const GroupSchema = new Schema(
     },
 
     avatar: {
-      type: String,
-      default: "",
+      type: Types.ObjectId,
+      ref: "Media",
+      required: false,
     },
 
     privacy: {
