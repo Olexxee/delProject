@@ -1,0 +1,97 @@
+[2026-02-06 04:48:08] INFO: Firebase Admin initialized (Base64)
+[2026-02-06 04:48:10] INFO: ☁️ Cloudinary initialized
+[2026-02-06 10:33:10] INFO: Firebase Admin initialized (Base64)
+[2026-02-06 10:33:12] INFO: ☁️ Cloudinary initialized
+[2026-02-06 10:34:52] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-06 10:34:52] INFO: 📍 Request URL:
+[2026-02-06 10:34:52] INFO: 🎫 Cookie token:
+[2026-02-06 10:34:52] INFO: 🎫 Header token:
+[2026-02-06 10:34:52] INFO: 🎫 Token being used:
+[2026-02-06 10:34:52] INFO: ✅ Token decoded:
+[2026-02-06 10:34:52] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-06 10:38:05] INFO: Firebase Admin initialized (Base64)
+[2026-02-06 10:38:08] INFO: ☁️ Cloudinary initialized
+[2026-02-06 10:38:13] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-06 10:38:13] INFO: 📍 Request URL:
+[2026-02-06 10:38:13] INFO: 🎫 Cookie token:
+[2026-02-06 10:38:13] INFO: 🎫 Header token:
+[2026-02-06 10:38:13] INFO: 🎫 Token being used:
+[2026-02-06 10:38:13] INFO: ✅ Token decoded:
+[2026-02-06 10:38:13] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-06 10:39:27] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-06 10:39:27] INFO: 📍 Request URL:
+[2026-02-06 10:39:27] INFO: 🎫 Cookie token:
+[2026-02-06 10:39:27] INFO: 🎫 Header token:
+[2026-02-06 10:39:27] INFO: 🎫 Token being used:
+[2026-02-06 10:39:27] INFO: ✅ Token decoded:
+[2026-02-06 10:39:27] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-06 10:43:56] INFO: Firebase Admin initialized (Base64)
+[2026-02-06 10:43:58] INFO: ☁️ Cloudinary initialized
+[2026-02-06 10:44:10] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-06 10:44:10] INFO: 📍 Request URL:
+[2026-02-06 10:44:10] INFO: 🎫 Cookie token:
+[2026-02-06 10:44:10] INFO: 🎫 Header token:
+[2026-02-06 10:44:10] INFO: 🎫 Token being used:
+[2026-02-06 10:44:10] INFO: ✅ Token decoded:
+[2026-02-06 10:44:10] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-06 10:44:52] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-06 10:44:52] INFO: 📍 Request URL:
+[2026-02-06 10:44:52] INFO: 🎫 Cookie token:
+[2026-02-06 10:44:52] INFO: 🎫 Header token:
+[2026-02-06 10:44:52] INFO: 🎫 Token being used:
+[2026-02-06 10:44:52] INFO: ✅ Token decoded:
+[2026-02-06 10:44:52] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-06 10:49:35] INFO: Firebase Admin initialized (Base64)
+[2026-02-06 10:49:36] INFO: ☁️ Cloudinary initialized
+[2026-02-06 10:49:59] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-06 10:49:59] INFO: 📍 Request URL:
+[2026-02-06 10:49:59] INFO: 🎫 Cookie token:
+[2026-02-06 10:49:59] INFO: 🎫 Header token:
+[2026-02-06 10:49:59] INFO: 🎫 Token being used:
+[2026-02-06 10:49:59] INFO: ✅ Token decoded:
+[2026-02-06 10:49:59] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-06 10:50:16] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-06 10:50:16] INFO: 📍 Request URL:
+[2026-02-06 10:50:16] INFO: 🎫 Cookie token:
+[2026-02-06 10:50:16] INFO: 🎫 Header token:
+[2026-02-06 10:50:16] INFO: 🎫 Token being used:
+[2026-02-06 10:50:16] INFO: ✅ Token decoded:
+[2026-02-06 10:50:16] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-06 10:54:51] INFO: Firebase Admin initialized (Base64)
+[2026-02-06 10:54:52] INFO: ☁️ Cloudinary initialized
+[2026-02-06 10:55:17] INFO: Firebase Admin initialized (Base64)
+[2026-02-06 10:55:18] INFO: ☁️ Cloudinary initialized
+[2026-02-06 10:55:54] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-06 10:55:55] INFO: 📍 Request URL:
+[2026-02-06 10:55:55] INFO: 🎫 Cookie token:
+[2026-02-06 10:55:55] INFO: 🎫 Header token:
+[2026-02-06 10:55:55] INFO: 🎫 Token being used:
+[2026-02-06 10:55:55] INFO: ✅ Token decoded:
+[2026-02-06 10:55:55] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-06 10:59:25] INFO: Firebase Admin initialized (Base64)
+[2026-02-06 10:59:26] INFO: ☁️ Cloudinary initialized
+[2026-02-06 10:59:59] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-06 10:59:59] INFO: 📍 Request URL:
+[2026-02-06 10:59:59] INFO: 🎫 Cookie token:
+[2026-02-06 10:59:59] INFO: 🎫 Header token:
+[2026-02-06 10:59:59] INFO: 🎫 Token being used:
+[2026-02-06 10:59:59] INFO: ✅ Token decoded:
+[2026-02-06 10:59:59] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-06 11:00:06] ERROR: [Notification] Recipient undefined not found
+[2026-02-06 11:08:13] INFO: Firebase Admin initialized (Base64)
+[2026-02-06 11:08:15] INFO: ☁️ Cloudinary initialized
+[2026-02-06 11:09:53] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-06 11:09:53] INFO: 📍 Request URL:
+[2026-02-06 11:09:53] INFO: 🎫 Cookie token:
+[2026-02-06 11:09:53] INFO: 🎫 Header token:
+[2026-02-06 11:09:53] INFO: 🎫 Token being used:
+[2026-02-06 11:09:53] INFO: ✅ Token decoded:
+[2026-02-06 11:09:53] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-06 11:10:58] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-06 11:10:58] INFO: 📍 Request URL:
+[2026-02-06 11:10:58] INFO: 🎫 Cookie token:
+[2026-02-06 11:10:58] INFO: 🎫 Header token:
+[2026-02-06 11:10:58] INFO: 🎫 Token being used:
+[2026-02-06 11:10:58] INFO: ✅ Token decoded:
+[2026-02-06 11:10:58] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-06 11:11:05] ERROR: [Notification] Recipient undefined not found

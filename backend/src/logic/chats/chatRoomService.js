@@ -5,7 +5,7 @@ import { generateRoomKey } from "./chatRoomKeyService.js";
 /**
  * Helper to convert to ObjectId
  */
-const objectId = (id) => mongoose.Types.ObjectId(id);
+const objectId = (id) => new mongoose.Types.ObjectId(id);
 
 /**
  * Get an existing chat room or create a new one for a given context
@@ -15,6 +15,7 @@ const objectId = (id) => mongoose.Types.ObjectId(id);
  * @param {string} params.userId
  * @returns {Promise<Object>} ChatRoom document
  */
+
 export const getOrCreateChatRoom = async ({
   contextType,
   contextId,

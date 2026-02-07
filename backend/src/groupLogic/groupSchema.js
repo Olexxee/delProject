@@ -1,4 +1,5 @@
 import { Schema, model, Types } from "mongoose";
+import mongoose from "mongoose";
 import { nanoid } from "nanoid";
 import { group } from "node:console";
 
@@ -10,7 +11,12 @@ const GroupSchema = new Schema(
       trim: true,
       unique: true,
     },
-
+    groups: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Group",
+      },
+    ],
     bio: {
       type: String,
       default: "",
@@ -62,6 +68,10 @@ const GroupSchema = new Schema(
     chatRoom: { type: Types.ObjectId, ref: "ChatRoom", required: false },
     lastTournamentAt: {
       type: Date,
+    },
+    aesKey: {
+      type: String,
+      required: true,
     },
   },
   { timestamps: true },

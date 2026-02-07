@@ -60,11 +60,10 @@ const UserSchema = new Schema(
       enum: ["admin", "user", "superadmin"],
       default: "user",
     },
-     deviceTokens: {
-    type: [String], // Array to store multiple device tokens (iOS, Android, Web)
-    default: [],
-  },
-  aesKey: { type: String, required: true },
+    deviceTokens: {
+      type: [String], // Array to store multiple device tokens (iOS, Android, Web)
+      default: [],
+    },
 
     // === Group-related Metrics ===
     groupsCreatedCount: {
@@ -98,7 +97,7 @@ const UserSchema = new Schema(
       },
     ],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Hash password before saving
@@ -106,7 +105,7 @@ UserSchema.pre("save", async function (next) {
   if (this.isModified("password")) {
     this.password = await bcrypt.hash(
       this.password,
-      parseInt(configService.getOrThrow("SALT_ROUNDS"))
+      parseInt(configService.getOrThrow("SALT_ROUNDS")),
     );
   }
 });

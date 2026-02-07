@@ -9,6 +9,7 @@ import { getEmailTemplate } from "../logic/notifications/emailTemplates.js";
 import configService from "../lib/classes/configClass.js";
 import Message from "../models/messageSchema.js";
 import Group from "./groupSchema.js";
+import mongoose from "mongoose";
 import { generateRoomKey } from "../logic/chats/chatRoomKeyService.js";
 import { getOrCreateChatRoom } from "../logic/chats/chatRoomService.js";
 import {
@@ -31,7 +32,6 @@ export const getGroupByName = async ({ name }) => {
 /* =====================================================
    CREATE GROUP (MEMBERSHIP-DRIVEN CHAT)
 ===================================================== */
-
 export const createGroup = async ({
   userId,
   name,
@@ -41,7 +41,9 @@ export const createGroup = async ({
 }) => {
   // 1️⃣ Validate user
   const user = await userService.findUserById(userId);
-  if (!user) throw new NotFoundException("User not found");
+  if (!user) {
+    throw new NotFoundException("User not found");
+  }
 
   // 2️⃣ Prevent duplicate group names
   const existingGroup = await groupDb.findGroupByName(name);
@@ -49,6 +51,7 @@ export const createGroup = async ({
     throw new ConflictException("A group with this name already exists");
   }
 
+  // 3️⃣ Create group
   const aesKey = generateRoomKey();
 
   let group = await groupDb.createGroup({
@@ -60,8 +63,11 @@ export const createGroup = async ({
     aesKey,
   });
 
-  if (!group) throw new BadRequestError("Failed to create group");
+  if (!group) {
+    throw new BadRequestError("Failed to create group");
+  }
 
+  // 4️⃣ Create membership
   await membershipService.createMembership({
     userId: user._id,
     groupId: group._id,
@@ -69,21 +75,26 @@ export const createGroup = async ({
     status: "active",
   });
 
+  // 5️⃣ Create or fetch chat room
   const chatRoom = await getOrCreateChatRoom({
     contextType: "group",
     contextId: group._id,
     userId: user._id,
   });
 
+  // 6️⃣ Attach chat room
   group.chatRoom = chatRoom._id;
   await group.save();
 
-  group = await group.populate("avatar").populate("createdBy");
+  // 7️⃣ Populate relations
+  group = await group.populate([{ path: "avatar" }, { path: "createdBy" }]);
 
+  // 8️⃣ Update user groups (WRITE PATH — must be clean)
   user.groups = user.groups || [];
   user.groups.push(group._id);
   await user.save();
 
+  // 9️⃣ Notification
   await NotificationService.send({
     recipient: user._id,
     sender: "system",
@@ -101,6 +112,7 @@ export const createGroup = async ({
     },
   });
 
+  // 🔊 Broadcast
   if (chatBroadcaster) {
     chatBroadcaster.broadcastMessage(group._id, {
       system: true,
@@ -110,16 +122,26 @@ export const createGroup = async ({
     });
   }
 
+  // 10️⃣ Serialize
   const serializedGroup = serializeGroup(group);
+
+  // 🔒 DEFENSIVE READ (THIS IS THE KEY FIX)
+  const validGroupIds = (user.groups || []).filter((id) =>
+    mongoose.Types.ObjectId.isValid(id),
+  );
+
+  const populatedGroups = await Group.find({
+    _id: { $in: validGroupIds },
+  })
+    .populate("avatar")
+    .then((gs) => gs.map(serializeGroup));
 
   return {
     group: serializedGroup,
     chatRoom,
     user: {
       ...user.toObject(),
-      groups: await Group.find({ _id: { $in: user.groups } })
-        .populate("avatar")
-        .then((gs) => gs.map(serializeGroup)),
+      groups: populatedGroups,
     },
   };
 };
