@@ -29,7 +29,6 @@ export const getOrCreateChatRoom = async ({
   let room = await ChatRoom.findOne({ contextType, contextId });
 
   if (room) {
-    // Atomically add user if not already in participants
     await ChatRoom.updateOne(
       { _id: room._id },
       { $addToSet: { participants: objectId(userId) } },
@@ -37,7 +36,6 @@ export const getOrCreateChatRoom = async ({
     return room;
   }
 
-  // Create a new chat room
   room = await ChatRoom.create({
     contextType,
     contextId,

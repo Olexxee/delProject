@@ -1,0 +1,30 @@
+[2026-02-08 07:05:47] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:05:52] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:06:03] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:06:03] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:07:14] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:07:40] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:07:47] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:08:34] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:08:40] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:08:46] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:09:09] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:09:53] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:11:01] ERROR: [Socket Chat Error] Cannot read properties of undefined (reading 'contextType')
+[2026-02-08 07:22:18] ERROR: [Socket Chat Error] ChatRoom is not defined
+[2026-02-08 07:22:18] ERROR: [Socket Chat Error] ChatRoom is not defined
+[2026-02-08 07:23:44] ERROR: [Socket Chat Error] chatRoom is not defined
+[2026-02-08 07:23:44] ERROR: [Socket Chat Error] chatRoom is not defined
+[2026-02-08 07:30:26] ERROR: [Socket Chat Error] chatService.markDelivered is not a function
+[2026-02-08 07:30:54] ERROR: [Socket Chat Error] chatService.markDelivered is not a function
+[2026-02-08 07:30:54] ERROR: [Socket Chat Error] chatService.markDelivered is not a function
+[2026-02-08 07:32:44] ERROR: [Socket Chat Error] chatService.markDelivered is not a function
+[2026-02-08 07:32:44] ERROR: [Socket Chat Error] chatService.markDelivered is not a function
+[2026-02-08 07:33:04] ERROR: [Socket Chat Error] chatService.markDelivered is not a function
+[2026-02-08 07:33:04] ERROR: [Socket Chat Error] chatService.markDelivered is not a function
+[2026-02-08 07:34:21] ERROR: [Socket Chat Error] chatService.markDelivered is not a function
+[2026-02-08 07:34:21] ERROR: [Socket Chat Error] chatService.markDelivered is not a function
+[2026-02-08 07:34:42] ERROR: [Socket Chat Error] chatService.markDelivered is not a function
+[2026-02-08 07:34:42] ERROR: [Socket Chat Error] chatService.markDelivered is not a function
+[2026-02-08 07:34:47] ERROR: [Socket Chat Error] chatService.markDelivered is not a function
+[2026-02-08 07:45:02] ERROR: [Socket Chat Error] Chat room not found

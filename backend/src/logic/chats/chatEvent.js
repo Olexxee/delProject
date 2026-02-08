@@ -1,4 +1,5 @@
-import * as chatService from "../../logic/chats/chatService.js";
+import ChatRoom from "../../models/chatRoomSchema.js";
+import chatService from "../../logic/chats/chatService.js"; // ✅ default import
 import { ensureChatAccess } from "./chatGuard.js";
 import { ChatEvents } from "../../logic/chats/chatContract.js";
 import logger from "../../lib/logger.js";
@@ -14,7 +15,7 @@ const safeHandler =
       const result = await handler(payload);
       ack?.({ success: true, ...result });
     } catch (err) {
-      logger.error(`[Socket Chat Error]`, err);
+      logger.error("[Socket Chat Error]", err);
       ack?.({ success: false, error: err.message });
     }
   };
@@ -26,22 +27,28 @@ export const registerChatEvents = (io, socket) => {
   const userId = socket.user.id;
   const broadcaster = new ChatBroadcaster(io);
 
+  // Helper: fetch room + validate access
+  const getRoomAndAuthorize = async (chatRoomId) => {
+    const chatRoom = await ChatRoom.findById(chatRoomId);
+    if (!chatRoom) throw new Error("Chat room not found");
+
+    await ensureChatAccess({ chatRoom, userId });
+    return chatRoom;
+  };
+
   // -----------------------------
   // JOIN ROOM
   // -----------------------------
   socket.on(
     ChatEvents.JOIN,
     safeHandler(async ({ chatRoomId, limit = 50 }) => {
-      // Fetch room for access check
-      await ensureChatAccess(userId, chatRoomId);
+      await getRoomAndAuthorize(chatRoomId);
 
       socket.join(chatRoomId);
 
-      // Mark delivered and notify
       await chatService.markDelivered({ chatRoomId, userId });
       broadcaster.notifyDelivered(chatRoomId, userId);
 
-      // Fetch latest messages
       const messages = await chatService.getMessages({
         chatRoomId,
         userId,
@@ -60,9 +67,8 @@ export const registerChatEvents = (io, socket) => {
   socket.on(
     ChatEvents.SEND,
     safeHandler(async ({ chatRoomId, content, mediaIds = [] }) => {
-      await ensureChatAccess(userId, chatRoomId);
+      await getRoomAndAuthorize(chatRoomId);
 
-      // Create message using new ChatService API
       const message = await chatService.createMessage({
         chatRoomId,
         senderId: userId,
@@ -70,9 +76,7 @@ export const registerChatEvents = (io, socket) => {
         mediaIds,
       });
 
-      // Broadcast encrypted payload
       broadcaster.broadcastMessage(chatRoomId, message);
-
       return { message };
     }),
   );
@@ -83,9 +87,11 @@ export const registerChatEvents = (io, socket) => {
   socket.on(
     ChatEvents.READ,
     safeHandler(async ({ chatRoomId }) => {
+      await getRoomAndAuthorize(chatRoomId);
+
       await chatService.markRead({ chatRoomId, userId });
       broadcaster.notifyRead(chatRoomId, userId);
-      return {}; // ensure ACK is called
+      return {};
     }),
   );
 
@@ -111,7 +117,9 @@ export const registerChatEvents = (io, socket) => {
         user: socket.user,
         messageId,
       });
+
       broadcaster.notifyDeletedForAll(message.chatRoom.toString(), messageId);
+
       logger.info(
         `[Chat] User ${userId} deleted message ${messageId} for everyone`,
       );
@@ -125,7 +133,7 @@ export const registerChatEvents = (io, socket) => {
   socket.on(
     ChatEvents.USER_TYPING,
     safeHandler(async ({ chatRoomId, isTyping }) => {
-      await ensureChatAccess(userId, chatRoomId);
+      await getRoomAndAuthorize(chatRoomId);
       broadcaster.notifyTyping(chatRoomId, userId, isTyping);
       return {};
     }),

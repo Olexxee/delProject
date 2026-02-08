@@ -124,8 +124,18 @@ export const createGroup = async ({
 
   // 10️⃣ Serialize
   const serializedGroup = serializeGroup(group);
+  const safeUser = {
+    id: user._id.toString(),
+    username: user.username,
+    email: user.email,
+    profilePicture: user.profilePicture,
+    role: user.role,
+    isActive: user.isActive,
+    groups: populatedGroups,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
 
-  // 🔒 DEFENSIVE READ (THIS IS THE KEY FIX)
   const validGroupIds = (user.groups || []).filter((id) =>
     mongoose.Types.ObjectId.isValid(id),
   );
@@ -139,10 +149,7 @@ export const createGroup = async ({
   return {
     group: serializedGroup,
     chatRoom,
-    user: {
-      ...user.toObject(),
-      groups: populatedGroups,
-    },
+    user: safeUser,
   };
 };
 
