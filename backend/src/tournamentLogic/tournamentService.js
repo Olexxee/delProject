@@ -1,11 +1,23 @@
 import * as fixtureDb from "../models/fixtureSchemaService.js";
 import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as userService from "../user/userService.js";
+import Group from "../groupLogic/groupSchema.js";
 import * as userStatsService from "../user/statschemaService.js";
 import {
   NotFoundException,
   BadRequestError,
 } from "../lib/classes/errorClasses.js";
+
+export const createTournament = async (data) => {
+  const tournament = await tournamentDb.createTournament(data);
+
+  await Group.findByIdAndUpdate(data.groupId, {
+    $inc: { tournamentsCount: 1 },
+    $set: { lastTournamentAt: new Date() },
+  });
+
+  return tournament;
+};
 
 // -------------------------------
 // GET ALL TOURNAMENT FIXTURES (ENRICHED)
@@ -42,7 +54,7 @@ export const getTournamentFixtures = async (tournamentId) => {
         homeGoals: f.homeGoals,
         awayGoals: f.awayGoals,
       };
-    })
+    }),
   );
 
   return enrichedFixtures;
@@ -81,7 +93,7 @@ export const getMatchdayFixtures = async ({ tournamentId, matchday }) => {
         homeGoals: f.homeGoals,
         awayGoals: f.awayGoals,
       };
-    })
+    }),
   );
 
   return enriched;
@@ -116,7 +128,7 @@ export const getTeamFixtures = async ({ tournamentId, teamId }) => {
         homeTeamGoals: f.homeGoals,
         awayTeamGoals: f.awayGoals,
       };
-    })
+    }),
   );
 
   return enriched;
@@ -158,14 +170,44 @@ export const getUpcomingFixturesForUser = async (userId) => {
           homeGoals: f.homeGoals,
           awayGoals: f.awayGoals,
         };
-      })
+      }),
     );
 
     upcomingFixtures.push(...enriched);
   }
 
   // Sort by scheduledDate
-  upcomingFixtures.sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
+  upcomingFixtures.sort(
+    (a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate),
+  );
 
   return upcomingFixtures;
+};
+
+export const updateTournamentStatus = async ({ tournamentId, newStatus }) => {
+  const tournament = await tournamentDb.findTournamentById(tournamentId);
+  if (!tournament) throw new NotFoundException("Tournament not found");
+
+  const oldStatus = tournament.status;
+
+  tournament.status = newStatus;
+  await tournament.save();
+
+  const groupId = tournament.groupId;
+
+  if (oldStatus !== "ongoing" && newStatus === "ongoing") {
+    await Group.findByIdAndUpdate(groupId, {
+      $inc: { activeTournamentsCount: 1 },
+      $set: { lastTournamentAt: new Date() },
+    });
+  }
+
+  // Decrement active tournaments
+  if (oldStatus === "ongoing" && newStatus === "completed") {
+    await Group.findByIdAndUpdate(groupId, {
+      $inc: { activeTournamentsCount: -1 },
+    });
+  }
+
+  return tournament;
 };

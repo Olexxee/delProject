@@ -73,8 +73,20 @@ const GroupSchema = new Schema(
       type: String,
       required: true,
     },
+    averagePoints: {
+      type: Number,
+      default: 0,
+    },
+
+    competitiveIndex: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true },
 );
+
+GroupSchema.index({ competitiveIndex: -1 });
+GroupSchema.index({ activeTournamentsCount: -1 });
 
 export default model("Group", GroupSchema);

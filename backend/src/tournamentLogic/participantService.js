@@ -40,18 +40,17 @@ export const registerParticipant = async ({ tournamentId, userId }) => {
   // Check if already registered
   const existingRegistration = await tournamentDb.findUserInTournament(
     tournamentId,
-    userId
+    userId,
   );
   if (existingRegistration) {
     throw new ConflictException(
-      "You are already registered for this tournament"
+      "You are already registered for this tournament",
     );
   }
 
   // Check capacity
-  const capacityCheck = await tournamentDb.checkTournamentCapacity(
-    tournamentId
-  );
+  const capacityCheck =
+    await tournamentDb.checkTournamentCapacity(tournamentId);
   if (capacityCheck.isFull) {
     throw new BadRequestError("Tournament is full");
   }
@@ -59,7 +58,7 @@ export const registerParticipant = async ({ tournamentId, userId }) => {
   // Register participant
   const updatedTournament = await tournamentDb.addParticipant(
     tournamentId,
-    userId
+    userId,
   );
 
   // 🎯 CREATE TOURNAMENT-SPECIFIC USER STATS
@@ -119,7 +118,7 @@ export const withdrawParticipant = async ({ tournamentId, userId, reason }) => {
   // Check if user is registered
   const registration = await tournamentDb.findUserInTournament(
     tournamentId,
-    userId
+    userId,
   );
   if (!registration) {
     throw new NotFoundException("You are not registered for this tournament");
@@ -141,7 +140,7 @@ export const withdrawParticipant = async ({ tournamentId, userId, reason }) => {
   // 🎯 REMOVE TOURNAMENT-SPECIFIC STATS
   await userStatsService.deleteUserStats(
     userId,
-    tournament.groupId._id || tournament.groupId
+    tournament.groupId._id || tournament.groupId,
   );
 
   return {
@@ -176,7 +175,7 @@ const createTournamentStats = async ({ userId, groupId, tournamentId }) => {
     });
 
     console.log(
-      `✅ Tournament stats created for user ${userId} in tournament ${tournamentId}`
+      `✅ Tournament stats created for user ${userId} in tournament ${tournamentId}`,
     );
   } catch (error) {
     // Handle duplicate key error (stats already exist)
@@ -196,89 +195,119 @@ export const updateParticipantStats = async ({
   scheduledDate,
 }) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
+  if (!tournament) throw new NotFoundException("Tournament not found");
+
+  const groupId = tournament.groupId._id || tournament.groupId;
 
   for (const participant of participants) {
     const { userId, goals = 0, isWinner } = participant;
 
-    // Determine result
-    const opponent = participants.find((p) => p.userId.toString() !== userId.toString());
-    const result = isWinner ? "win" : opponent?.isWinner ? "loss" : "draw";
-
-    const userStats = await UserStats.findOne({
-      user: userId,
-      "tournamentsPlayedIn.tournamentId": tournamentId,
-    });
-
-    if (!userStats) continue;
-
-    // Find the tournament record
-    const tournamentRecord = userStats.tournamentsPlayedIn.find(
-      (t) => t.tournamentId.toString() === tournamentId.toString()
+    const opponent = participants.find(
+      (p) => p.userId.toString() !== userId.toString(),
     );
 
-    if (!tournamentRecord) continue;
+    const result = isWinner ? "win" : opponent?.isWinner ? "loss" : "draw";
 
-    // Push fixture summary
-    tournamentRecord.fixtures.push({
+    const points =
+      result === "win"
+        ? tournament.settings.pointsForWin
+        : result === "draw"
+          ? tournament.settings.pointsForDraw
+          : tournament.settings.pointsForLoss;
+
+    const fixtureSummary = {
       fixtureId: matchId,
       opponent: opponent?.userId,
-      homeOrAway: participant.userId.toString() === tournamentRecord?.homeTeam?.toString() ? "home" : "away",
+      homeOrAway: "home", // adjust if needed
       goalsFor: goals,
       goalsAgainst: opponent?.goals || 0,
       result,
       matchday,
       scheduledDate,
       status: "completed",
-    });
+    };
 
-    // Update totals
-    tournamentRecord.matchesPlayed += 1;
-    tournamentRecord.wins += result === "win" ? 1 : 0;
-    tournamentRecord.losses += result === "loss" ? 1 : 0;
-    tournamentRecord.draws += result === "draw" ? 1 : 0;
-    tournamentRecord.goalsScored += goals;
-    tournamentRecord.goalsConceded += opponent?.goals || 0;
-    tournamentRecord.points += result === "win"
-      ? tournament.settings.pointsForWin
-      : result === "draw"
-      ? tournament.settings.pointsForDraw
-      : tournament.settings.pointsForLoss;
-
-    userStats.lastUpdated = new Date();
-    await userStats.save();
+    await UserStats.updateOne(
+      {
+        user: userId,
+        group: groupId,
+        "tournamentsPlayedIn.tournamentId": tournamentId,
+      },
+      {
+        $inc: {
+          "tournamentsPlayedIn.$.matchesPlayed": 1,
+          "tournamentsPlayedIn.$.wins": result === "win" ? 1 : 0,
+          "tournamentsPlayedIn.$.losses": result === "loss" ? 1 : 0,
+          "tournamentsPlayedIn.$.draws": result === "draw" ? 1 : 0,
+          "tournamentsPlayedIn.$.goalsScored": goals,
+          "tournamentsPlayedIn.$.goalsConceded": opponent?.goals || 0,
+          "tournamentsPlayedIn.$.points": points,
+        },
+        $push: {
+          "tournamentsPlayedIn.$.fixtures": fixtureSummary,
+        },
+        $set: {
+          lastUpdated: new Date(),
+        },
+      },
+    );
   }
 
-  // Recalculate tournament ranks
   await recalculateTournamentStandings(tournamentId);
 };
 
 // Recalculate tournament standings
 const recalculateTournamentStandings = async (tournamentId) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
+  if (!tournament) {
+    throw new Error("Tournament not found");
+  }
+
+  const groupId = tournament.groupId._id || tournament.groupId;
 
   // Get all participant stats for this tournament
   const participantStats = await userStatsService.getGroupStatsByTournament(
-    tournament.groupId._id || tournament.groupId,
-    tournamentId
+    groupId,
+    tournamentId,
   );
 
-  // Sort by points, then by wins, then by goal difference logic can be added
-  participantStats.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    return b.matchesPlayed - a.matchesPlayed;
-  });
-
-  // Update ranks
-  for (let i = 0; i < participantStats.length; i++) {
-    await userStatsService.updateUserStats(
-      participantStats[i].user._id,
-      tournament.groupId._id || tournament.groupId,
-      { rank: i + 1 }
-    );
+  if (!participantStats || participantStats.length === 0) {
+    console.log("No participants found for standings recalculation.");
+    return;
   }
 
+  // 🔥 Correct ranking logic
+  participantStats.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+
+    const goalDiffA = a.goalsScored - a.goalsConceded;
+    const goalDiffB = b.goalsScored - b.goalsConceded;
+
+    if (goalDiffB !== goalDiffA) return goalDiffB - goalDiffA;
+
+    return b.goalsScored - a.goalsScored;
+  });
+
+  // ✅ BULK RANK UPDATE
+  const bulkOps = participantStats.map((stat, index) => ({
+    updateOne: {
+      filter: {
+        user: stat.user._id,
+        group: groupId,
+        "tournamentsPlayedIn.tournamentId": tournamentId,
+      },
+      update: {
+        $set: {
+          "tournamentsPlayedIn.$.rank": index + 1,
+        },
+      },
+    },
+  }));
+
+  await UserStats.bulkWrite(bulkOps);
+
   console.log(
-    `🏆 Tournament standings recalculated for tournament ${tournamentId}`
+    `🏆 Tournament standings recalculated for tournament ${tournamentId}`,
   );
 };

@@ -1,0 +1,22 @@
+[2026-02-16 06:15:21] INFO: Firebase Admin initialized (Base64)
+[2026-02-16 06:15:41] INFO: ☁️ Cloudinary initialized
+[2026-02-16 06:26:50] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-16 06:26:50] INFO: 📍 Request URL:
+[2026-02-16 06:26:50] INFO: 🎫 Cookie token:
+[2026-02-16 06:26:50] INFO: 🎫 Header token:
+[2026-02-16 06:26:50] INFO: 🎫 Token being used:
+[2026-02-16 06:26:50] INFO: ✅ Token decoded:
+[2026-02-16 06:26:50] INFO: 🔐 === END AUTH MIDDLEWARE ===
+[2026-02-16 06:32:10] INFO: Firebase Admin initialized (Base64)
+[2026-02-16 06:32:14] INFO: ☁️ Cloudinary initialized
+[2026-02-16 06:32:38] INFO: Firebase Admin initialized (Base64)
+[2026-02-16 06:32:39] INFO: ☁️ Cloudinary initialized
+[2026-02-16 06:32:52] INFO: Firebase Admin initialized (Base64)
+[2026-02-16 06:32:54] INFO: ☁️ Cloudinary initialized
+[2026-02-16 06:33:36] INFO: 🔐 === AUTH MIDDLEWARE DEBUG ===
+[2026-02-16 06:33:36] INFO: 📍 Request URL:
+[2026-02-16 06:33:36] INFO: 🎫 Cookie token:
+[2026-02-16 06:33:36] INFO: 🎫 Header token:
+[2026-02-16 06:33:36] INFO: 🎫 Token being used:
+[2026-02-16 06:33:36] INFO: ✅ Token decoded:
+[2026-02-16 06:33:36] INFO: 🔐 === END AUTH MIDDLEWARE ===

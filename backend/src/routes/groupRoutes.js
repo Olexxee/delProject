@@ -9,9 +9,10 @@ import {
   kickUserFromGroup,
   leaveGroup,
   changeMemberRole,
-  updateGroupMedia, // <-- new endpoint
+  updateGroupMedia,
 } from "../groupLogic/groupController.js";
-import {authMiddleware} from "../middlewares/authenticationMdw.js";
+import { getDiscoverGroups } from "../groupLogic/discoverGroupsController.js";
+import { authMiddleware } from "../middlewares/authenticationMdw.js";
 import { requireGroupAdmin } from "../admin/adminMiddleware.js";
 import { handleMediaUpload } from "../middlewares/uploadMiddleware.js";
 
@@ -23,10 +24,10 @@ const groupRouter = Router();
 
 // Create a group
 groupRouter.post(
-  "/create", 
-  authMiddleware, 
-  handleMediaUpload("group"), 
-  createGroup
+  "/create",
+  authMiddleware,
+  handleMediaUpload("group"),
+  createGroup,
 );
 
 // Get group by name
@@ -37,7 +38,7 @@ groupRouter.get(
   "/:groupId/invite",
   authMiddleware,
   requireGroupAdmin,
-  generateInviteLink
+  generateInviteLink,
 );
 
 // Join a group via invite link
@@ -51,7 +52,7 @@ groupRouter.post(
   "/:groupId/kick/:userId",
   authMiddleware,
   requireGroupAdmin,
-  kickUserFromGroup
+  kickUserFromGroup,
 );
 
 // Leave group
@@ -62,11 +63,14 @@ groupRouter.post(
   "/:groupId/change-role/:userId",
   authMiddleware,
   requireGroupAdmin,
-  changeMemberRole
+  changeMemberRole,
 );
 
 // Get all groups of the user
 groupRouter.get("/my-groups", authMiddleware, getMyGroups);
+
+// Discover groups based on activity
+groupRouter.get("/discover", authMiddleware, getDiscoverGroups);
 
 // -----------------------
 // UPLOAD GROUP MEDIA
@@ -76,8 +80,8 @@ groupRouter.post(
   "/:groupId/media",
   authMiddleware,
   requireGroupAdmin,
-  handleMediaUpload("group"), // you can also create separate type "group" if needed
-  updateGroupMedia
+  handleMediaUpload("group"),
+  updateGroupMedia,
 );
 
 export default groupRouter;

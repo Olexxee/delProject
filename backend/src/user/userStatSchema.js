@@ -12,7 +12,7 @@ const FixtureSummarySchema = new Schema(
     scheduledDate: { type: Date },
     status: { type: String, enum: ["scheduled", "in_progress", "completed"] },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const TournamentStatsSchema = new Schema(
@@ -28,7 +28,7 @@ const TournamentStatsSchema = new Schema(
     rank: { type: Number, default: 0 },
     fixtures: [FixtureSummarySchema],
   },
-  { _id: false }
+  { _id: false },
 );
 
 const UserStatsSchema = new Schema(
@@ -38,13 +38,14 @@ const UserStatsSchema = new Schema(
     tournamentsPlayedIn: [TournamentStatsSchema],
     lastUpdated: { type: Date, default: Date.now },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Index for fast tournament lookup per user
 UserStatsSchema.index(
   { user: 1, group: 1, "tournamentsPlayedIn.tournamentId": 1 },
-  { unique: true }
+  { unique: true },
 );
+UserStatsSchema.index({ group: 1 });
 
 export default model("UserStats", UserStatsSchema);
