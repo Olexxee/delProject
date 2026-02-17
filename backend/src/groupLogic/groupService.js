@@ -122,8 +122,16 @@ export const createGroup = async ({
     });
   }
 
-  // 10️⃣ Serialize
-  const serializedGroup = serializeGroup(group);
+  const validGroupIds = (user.groups || []).filter((id) =>
+    mongoose.Types.ObjectId.isValid(id),
+  );
+
+  const populatedGroups = await Group.find({
+    _id: { $in: validGroupIds },
+  })
+    .populate("avatar")
+    .then((gs) => gs.map(serializeGroup));
+
   const safeUser = {
     id: user._id.toString(),
     username: user.username,
@@ -136,18 +144,8 @@ export const createGroup = async ({
     updatedAt: user.updatedAt,
   };
 
-  const validGroupIds = (user.groups || []).filter((id) =>
-    mongoose.Types.ObjectId.isValid(id),
-  );
-
-  const populatedGroups = await Group.find({
-    _id: { $in: validGroupIds },
-  })
-    .populate("avatar")
-    .then((gs) => gs.map(serializeGroup));
-
   return {
-    group: serializedGroup,
+    group: serializeGroup(group),
     chatRoom,
     user: safeUser,
   };
@@ -317,7 +315,7 @@ export const getUserGroupsWithLastMessage = async ({
 }) => {
   const skip = (page - 1) * limit;
 
-  // 1️⃣ Fetch active memberships
+  // 1️⃣ Fetch active memberships to get group IDs
   const memberships = await membershipCrud.findGroupsByUser(
     { userId, status: "active" },
     { skip, limit },
@@ -327,47 +325,69 @@ export const getUserGroupsWithLastMessage = async ({
 
   const groupIds = memberships.map((m) => m.groupId);
 
-  // 2️⃣ Fetch groups with chatRoom populated
-  const groups = await groupDb.findGroupsByIds(groupIds, {
-    populateChatRoom: true,
-  });
+  // 2️⃣ Aggregate groups with avatar, chatRoom, and last message
+  const groups = await Group.aggregate([
+    { $match: { _id: { $in: groupIds } } },
 
-  // 3️⃣ Collect chatRoom IDs
-  const chatRoomIds = groups.map((g) => g.chatRoom?._id).filter(Boolean);
+    // Lookup avatar (Media collection)
+    {
+      $lookup: {
+        from: "media",
+        localField: "avatar",
+        foreignField: "_id",
+        as: "avatarDoc",
+      },
+    },
+    { $unwind: { path: "$avatarDoc", preserveNullAndEmptyArrays: true } },
 
-  // 4️⃣ Fetch last messages
-  const lastMessages = chatRoomIds.length
-    ? await Message.aggregate([
-        { $match: { chatRoom: { $in: chatRoomIds } } },
-        { $sort: { createdAt: -1 } },
-        { $group: { _id: "$chatRoom", message: { $first: "$$ROOT" } } },
-      ])
-    : [];
+    // Lookup chatRoom
+    {
+      $lookup: {
+        from: "chatrooms",
+        localField: "chatRoom",
+        foreignField: "_id",
+        as: "chatRoomDoc",
+      },
+    },
+    { $unwind: { path: "$chatRoomDoc", preserveNullAndEmptyArrays: true } },
 
-  const lastMessageMap = new Map(
-    lastMessages.map((m) => [m._id.toString(), m.message]),
-  );
+    // Lookup last message for the chatRoom
+    {
+      $lookup: {
+        from: "messages",
+        let: { chatRoomId: "$chatRoom" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$chatRoom", "$$chatRoomId"] } } },
+          { $sort: { createdAt: -1 } },
+          { $limit: 1 },
+        ],
+        as: "lastMessageDoc",
+      },
+    },
+    { $unwind: { path: "$lastMessageDoc", preserveNullAndEmptyArrays: true } },
 
-  // 5️⃣ Assemble response
-  return groups.map((group) => {
-    const chatRoom = group.chatRoom || null;
-    const lastMessage = chatRoom
-      ? lastMessageMap.get(chatRoom._id.toString())
-      : null;
+    // Project final shape
+    {
+      $project: {
+        id: "$_id",
+        name: 1,
+        avatar: "$avatarDoc.url",
+        chatRoomId: "$chatRoomDoc._id",
+        lastMessage: {
+          $cond: [
+            { $ifNull: ["$lastMessageDoc", false] },
+            {
+              encryptedContent: "$lastMessageDoc.encryptedContent",
+              sender: "$lastMessageDoc.sender",
+              createdAt: "$lastMessageDoc.createdAt",
+            },
+            null,
+          ],
+        },
+        lastMessageAt: "$lastMessageDoc.createdAt",
+      },
+    },
+  ]);
 
-    return {
-      id: group._id,
-      name: group.name,
-      avatar: group.avatar,
-      chatRoomId: chatRoom?._id || null,
-      lastMessage: lastMessage
-        ? {
-            encryptedContent: lastMessage.encryptedContent,
-            sender: lastMessage.sender,
-            createdAt: lastMessage.createdAt,
-          }
-        : null,
-      lastMessageAt: lastMessage?.createdAt || null,
-    };
-  });
+  return groups;
 };

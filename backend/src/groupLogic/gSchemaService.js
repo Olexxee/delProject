@@ -11,16 +11,18 @@ export const findGroupById = async (groupId) => {
 };
 
 // Get multiple groups by their IDs
-export const findGroupsByIds = async (ids, { populateChatRoom = false } = {}) => {
+export const findGroupsByIds = async (
+  ids,
+  { populateChatRoom = false } = {},
+) => {
   let query = Group.find({ _id: { $in: ids } });
-  
+
   if (populateChatRoom) {
-    query = query.populate("chatRoom");
+    query = query.populate("chatRoom").populate("avatar");
   }
 
   return query.lean();
 };
-
 
 // db/groupDb.js
 export const findGroupByName = async (groupName) => {
