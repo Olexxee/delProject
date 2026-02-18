@@ -14,29 +14,40 @@ const messageSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    encryptedContent: { type: String },
-    iv: { type: String },
-    authTag: { type: String },
-    media: [{ type: String }], // media IDs
+    content: { type: String }, // optional plaintext for hook
+    encryptedContent: { type: String }, // encrypted message
+    iv: { type: String }, // encryption initialization vector
+    authTag: { type: String }, // auth tag for encryption
+    media: [{ type: String }], // array of media URLs
     deliveredTo: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true },
 );
 
-export default mongoose.model("Message", messageSchema);
-
-// Pre-save: encrypt content
+/* ---------------------- Pre-save Hook ---------------------- */
+// Encrypt content if present before saving
 messageSchema.pre("save", async function (next) {
-  if (this.isNew && this.encryptedContent == null && this.content) {
-    const room = await ChatRoom.findById(this.chatRoom).select("+aesKey");
-    if (!room) throw new Error("Chat room not found");
+  console.log("Pre-save hook triggered for message:", this._id);
+  try {
+    if (this.isNew && this.content) {
+      const room = await ChatRoom.findById(this.chatRoom).select("+aesKey");
+      if (!room || !room.aesKey) {
+        return next(new Error("AES key not available for chat room"));
+      }
 
-    const encrypted = encrypt(this.content, room.aesKey);
-    this.encryptedContent = encrypted.cipherText;
-    this.iv = encrypted.iv;
-    this.authTag = encrypted.authTag;
-    this.content = undefined; // remove plaintext
+      const encrypted = encrypt(this.content, room.aesKey);
+      this.encryptedContent = encrypted.cipherText;
+      this.iv = encrypted.iv;
+      this.authTag = encrypted.authTag;
+      this.content = undefined;
+      console.log("Message encrypted successfully for message:", this._id);
+    }
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 });
+
+/* ---------------------- Export ---------------------- */
+export default mongoose.model("Message", messageSchema);

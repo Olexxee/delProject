@@ -22,28 +22,61 @@ class ChatService {
    * Fetch latest messages
    */
   async getMessages({ chatRoomId, userId, limit = 50, skip = 0 }) {
+    // 1️⃣ Fetch the chat room
     const room = await ChatRoom.findById(chatRoomId);
     if (!room) throw new NotFoundException("Chat room not found");
 
+    // 2️⃣ Check user access
     await ensureChatAccess({ chatRoom: room, userId });
 
+    // 3️⃣ Fetch messages with all fields needed for frontend decryption
     const messages = await Message.find({
       chatRoom: chatRoomId,
       deletedFor: { $ne: userId },
       isDeleted: { $ne: true },
     })
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: -1 }) // latest first
       .skip(skip)
       .limit(limit)
-      .populate("sender", "username firstName lastName profilePicture");
+      .populate("sender", "username firstName lastName profilePicture")
+      .select(
+        "_id chatRoom sender encryptedContent iv authTag media deliveredTo readBy createdAt updatedAt",
+      );
 
-    return messages;
+    // 4️⃣ Return a clean JSON object
+    return {
+      success: true,
+      data: {
+        messages: messages.map((msg) => ({
+          _id: msg._id,
+          chatRoomId: msg.chatRoom.toString(),
+          sender: msg.sender
+            ? {
+                _id: msg.sender._id,
+                username: msg.sender.username,
+                profilePicture: msg.sender.profilePicture,
+              }
+            : null,
+          encryptedContent: msg.encryptedContent,
+          iv: msg.iv,
+          authTag: msg.authTag,
+          media: msg.media || [],
+          deliveredTo: msg.deliveredTo.map((id) => id.toString()),
+          readBy: msg.readBy.map((id) => id.toString()),
+          createdAt: msg.createdAt,
+          updatedAt: msg.updatedAt,
+        })),
+        count: messages.length,
+        hasMore: messages.length === limit,
+      },
+    };
   }
 
   /**
    * Create a new message
    */
   async createMessage({ chatRoomId, senderId, content, mediaIds = [] }) {
+    // 1️⃣ Validate input
     if ((!content || !content.trim()) && mediaIds.length === 0) {
       throw new BadRequestError("Message must have content or media");
     }
@@ -52,30 +85,42 @@ class ChatService {
       throw new BadRequestError("Invalid chatRoomId");
     }
 
+    // 2️⃣ Fetch the chat room and check AES key + participants
     const room = await ChatRoom.findById(chatRoomId).select(
       "+aesKey participants name",
     );
     if (!room) throw new NotFoundException("Chat room not found");
 
+    // 3️⃣ Ensure the sender has access to this chat room
     await ensureChatAccess({ chatRoom: room, userId: senderId });
 
-    const message = await Message.create({
+    // 4️⃣ Create a new message instance
+    const message = new Message({
       chatRoom: chatRoomId,
       sender: senderId,
-      content: content?.trim() || null,
+      content: content?.trim() || null, // plaintext triggers encryption in pre-save
       media: mediaIds,
       deliveredTo: [senderId],
       readBy: [senderId],
     });
 
+    // 5️⃣ Save message (pre-save hook handles encryption)
+    await message.save();
+
+    // 6️⃣ Update chat room lastMessageAt timestamp
     await ChatRoom.updateOne(
       { _id: chatRoomId },
       { lastMessageAt: new Date() },
     );
 
+    console.log(
+      `Message created in room "${room.name || room._id}" by user ${senderId}`,
+    );
+
+    // 7️⃣ Populate sender details for response
     return await message.populate(
       "sender",
-      "username firstName lastName profilePicture",
+      "username firstName lastName profilePicture"
     );
   }
 
