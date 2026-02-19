@@ -2,6 +2,7 @@ import ChatRoom from "../../models/chatRoomSchema.js";
 import Message from "../../models/messageSchema.js";
 import { ensureChatAccess } from "./chatGuard.js";
 import * as membershipService from "../../groupLogic/membershipService.js";
+import { decrypt } from "../../lib/encryption.js";
 import mongoose from "mongoose";
 import {
   NotFoundException,
@@ -21,57 +22,81 @@ class ChatService {
   /**
    * Fetch latest messages
    */
-  async getMessages({ chatRoomId, userId, limit = 50, skip = 0 }) {
-    // 1️⃣ Fetch the chat room
-    const room = await ChatRoom.findById(chatRoomId);
+  async getMessages({ chatRoomId, userId, limit = 30, before }) {
+    const room = await ChatRoom.findById(chatRoomId).select("+aesKey");
     if (!room) throw new NotFoundException("Chat room not found");
-
-    // 2️⃣ Check user access
     await ensureChatAccess({ chatRoom: room, userId });
 
-    // 3️⃣ Fetch messages with all fields needed for frontend decryption
     const messages = await Message.find({
       chatRoom: chatRoomId,
       deletedFor: { $ne: userId },
       isDeleted: { $ne: true },
+      ...(before ? { createdAt: { $lt: new Date(before) } } : {}),
     })
-      .sort({ createdAt: -1 }) // latest first
-      .skip(skip)
+      .sort({ createdAt: -1 })
       .limit(limit)
-      .populate("sender", "username firstName lastName profilePicture")
+      .populate("sender", "username profilePicture")
+      // Include the encrypted fields so we can decrypt before sending
       .select(
-        "_id chatRoom sender encryptedContent iv authTag media deliveredTo readBy createdAt updatedAt",
-      );
+        "_id chatRoom sender content encryptedContent iv authTag media createdAt",
+      )
+      .lean();
 
-    // 4️⃣ Return a clean JSON object
+    const aesKey = room.aesKey;
+
     return {
       success: true,
       data: {
-        messages: messages.map((msg) => ({
-          _id: msg._id,
-          chatRoomId: msg.chatRoom.toString(),
-          sender: msg.sender
-            ? {
-                _id: msg.sender._id,
-                username: msg.sender.username,
-                profilePicture: msg.sender.profilePicture,
-              }
-            : null,
-          encryptedContent: msg.encryptedContent,
-          iv: msg.iv,
-          authTag: msg.authTag,
-          media: msg.media || [],
-          deliveredTo: msg.deliveredTo.map((id) => id.toString()),
-          readBy: msg.readBy.map((id) => id.toString()),
-          createdAt: msg.createdAt,
-          updatedAt: msg.updatedAt,
-        })),
+        messages: messages.map((msg) => {
+          // Decrypt if we have the encrypted payload and the room key.
+          // Fall back to stored plaintext content if decryption isn't possible.
+          let plaintext = msg.content || "";
+
+          if (
+            !plaintext &&
+            msg.encryptedContent &&
+            msg.iv &&
+            msg.authTag &&
+            aesKey
+          ) {
+            try {
+              plaintext = decrypt(
+                msg.encryptedContent,
+                aesKey,
+                msg.iv,
+                msg.authTag,
+              );
+            } catch (err) {
+              console.error(
+                `Failed to decrypt message ${msg._id}:`,
+                err.message,
+              );
+              plaintext = "";
+            }
+          }
+
+          return {
+            _id: msg._id.toString(),
+            chatRoomId: msg.chatRoom.toString(),
+            sender: msg.sender
+              ? {
+                  _id: msg.sender._id.toString(),
+                  username: msg.sender.username,
+                  profilePicture: msg.sender.profilePicture,
+                }
+              : null,
+            content: plaintext,
+            media: (msg.media || []).map((m) =>
+              typeof m === "string" ? m : m.url,
+            ),
+            createdAt: msg.createdAt,
+          };
+        }),
         count: messages.length,
         hasMore: messages.length === limit,
       },
     };
   }
-
   /**
    * Create a new message
    */
@@ -113,6 +138,13 @@ class ChatService {
       { lastMessageAt: new Date() },
     );
 
+    console.log("Message before send:", {
+      id: message._id,
+      content: message.content,
+      encryptedContent: message.encryptedContent,
+      decrypted: message.decryptedContent,
+    });
+
     console.log(
       `Message created in room "${room.name || room._id}" by user ${senderId}`,
     );
@@ -120,7 +152,7 @@ class ChatService {
     // 7️⃣ Populate sender details for response
     return await message.populate(
       "sender",
-      "username firstName lastName profilePicture"
+      "username firstName lastName profilePicture",
     );
   }
 
