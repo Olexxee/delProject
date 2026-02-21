@@ -3,7 +3,7 @@ import * as notificationDb from "../../models/notificationSchemaService.js";
 import { emailChannel } from "./emailChannel.js";
 import { pushChannel } from "./pushChannel.js";
 import { getSocketsByUserId } from "../socket/socketRegistry.js";
-import { io } from "../../server/serverConfig.js";
+import { getIo } from "../socket/socketInstance.js";
 import * as userService from "../../user/userService.js";
 
 class NotificationService {
@@ -22,7 +22,9 @@ class NotificationService {
     payload = {},
   }) {
     const activeChannels = [];
+
     const recipient = await userService.findUserById(recipientId);
+    console.log("Recipient:", recipient);
 
     if (!recipient) {
       logger.error(`[Notification] Recipient ${recipientId} not found`);
@@ -31,9 +33,10 @@ class NotificationService {
 
     // 1️⃣ In-app (WebSocket)
     if (channels.includes("inApp")) {
-      const sockets = getSocketsByUserId(recipientId);
+      const sockets = await getSocketsByUserId(recipientId);
 
       if (sockets.length > 0) {
+        const io = getIo();
         sockets.forEach((socketId) => {
           io.to(socketId).emit("notification:new", {
             type,
@@ -49,10 +52,7 @@ class NotificationService {
     }
 
     // 2️⃣ Push notifications
-    if (
-      channels.includes("push") &&
-      recipient.deviceTokens?.length
-    ) {
+    if (channels.includes("push") && recipient.deviceTokens?.length) {
       try {
         await pushChannel.send({
           tokens: recipient.deviceTokens,
@@ -62,10 +62,7 @@ class NotificationService {
         });
         activeChannels.push("push");
       } catch (err) {
-        logger.error(
-          `[Notification] Push failed for ${recipientId}`,
-          err
-        );
+        logger.error(`[Notification] Push failed for ${recipientId}`, err);
       }
     }
 
@@ -79,10 +76,7 @@ class NotificationService {
         });
         activeChannels.push("email");
       } catch (err) {
-        logger.error(
-          `[Notification] Email failed for ${recipientId}`,
-          err
-        );
+        logger.error(`[Notification] Email failed for ${recipientId}`, err);
       }
     }
 
@@ -98,10 +92,7 @@ class NotificationService {
         meta: payload,
       });
     } catch (err) {
-      logger.error(
-        "[Notification] DB persistence failed",
-        err
-      );
+      logger.error("[Notification] DB persistence failed", err);
     }
 
     return {

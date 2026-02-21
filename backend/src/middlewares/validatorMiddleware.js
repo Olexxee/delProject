@@ -19,7 +19,7 @@ export const validateQuery = (schema) => (req, res, next) => {
     next(
       err instanceof ValidationException
         ? err
-        : new ValidationException(err.message)
+        : new ValidationException(err.message),
     );
   }
 };
@@ -32,7 +32,7 @@ export const validateParams = (schema) => (req, res, next) => {
     next(
       err instanceof ValidationException
         ? err
-        : new ValidationException(err.message)
+        : new ValidationException(err.message),
     );
   }
 };

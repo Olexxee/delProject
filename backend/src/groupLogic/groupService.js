@@ -2,12 +2,12 @@ import * as groupDb from "./gSchemaService.js";
 import * as membershipService from "./membershipService.js";
 import * as membershipCrud from "./membershipSchemaService.js";
 import * as userService from "../user/userService.js";
+import { decrypt } from "../lib/encryption.js";
 import { serializeGroup } from "../lib/serializeUser.js";
 import NotificationService from "../logic/notifications/notificationService.js";
 import { NotificationTypes } from "../logic/notifications/notificationTypes.js";
 import { getEmailTemplate } from "../logic/notifications/emailTemplates.js";
 import configService from "../lib/classes/configClass.js";
-import Message from "../models/messageSchema.js";
 import Group from "./groupSchema.js";
 import mongoose from "mongoose";
 import { generateRoomKey } from "../logic/chats/chatRoomKeyService.js";
@@ -41,6 +41,7 @@ export const createGroup = async ({
 }) => {
   // 1️⃣ Validate user
   const user = await userService.findUserById(userId);
+  console.log("User:", user);
   if (!user) {
     throw new NotFoundException("User not found");
   }
@@ -96,7 +97,7 @@ export const createGroup = async ({
 
   // 9️⃣ Notification
   await NotificationService.send({
-    recipient: user._id,
+    recipientId: user._id,
     sender: "system",
     type: NotificationTypes.GROUP_CREATED,
     title: `Group "${group.name}" created 🎉`,
@@ -315,7 +316,6 @@ export const getUserGroupsWithLastMessage = async ({
 }) => {
   const skip = (page - 1) * limit;
 
-  // 1️⃣ Fetch active memberships to get group IDs
   const memberships = await membershipCrud.findGroupsByUser(
     { userId, status: "active" },
     { skip, limit },
@@ -325,11 +325,9 @@ export const getUserGroupsWithLastMessage = async ({
 
   const groupIds = memberships.map((m) => m.groupId);
 
-  // 2️⃣ Aggregate groups with avatar, chatRoom, and last message
   const groups = await Group.aggregate([
     { $match: { _id: { $in: groupIds } } },
 
-    // Lookup avatar (Media collection)
     {
       $lookup: {
         from: "media",
@@ -340,7 +338,6 @@ export const getUserGroupsWithLastMessage = async ({
     },
     { $unwind: { path: "$avatarDoc", preserveNullAndEmptyArrays: true } },
 
-    // Lookup chatRoom
     {
       $lookup: {
         from: "chatrooms",
@@ -351,7 +348,6 @@ export const getUserGroupsWithLastMessage = async ({
     },
     { $unwind: { path: "$chatRoomDoc", preserveNullAndEmptyArrays: true } },
 
-    // Lookup last message for the chatRoom
     {
       $lookup: {
         from: "messages",
@@ -366,18 +362,21 @@ export const getUserGroupsWithLastMessage = async ({
     },
     { $unwind: { path: "$lastMessageDoc", preserveNullAndEmptyArrays: true } },
 
-    // Project final shape
     {
       $project: {
         id: "$_id",
         name: 1,
         avatar: "$avatarDoc.url",
         chatRoomId: "$chatRoomDoc._id",
-        lastMessage: {
+        aesKey: "$chatRoomDoc.aesKey", // used for decryption below, stripped before return
+        lastMessageRaw: {
           $cond: [
             { $ifNull: ["$lastMessageDoc", false] },
             {
               encryptedContent: "$lastMessageDoc.encryptedContent",
+              iv: "$lastMessageDoc.iv",
+              authTag: "$lastMessageDoc.authTag",
+              content: "$lastMessageDoc.content",
               sender: "$lastMessageDoc.sender",
               createdAt: "$lastMessageDoc.createdAt",
             },
@@ -389,5 +388,35 @@ export const getUserGroupsWithLastMessage = async ({
     },
   ]);
 
-  return groups;
+  return groups.map((group) => {
+    let lastMessage = null;
+
+    if (group.lastMessageRaw) {
+      const { encryptedContent, iv, authTag, content } = group.lastMessageRaw;
+
+      if (content) {
+        lastMessage = content;
+      } else if (encryptedContent && iv && authTag && group.aesKey) {
+        try {
+          lastMessage = decrypt(encryptedContent, group.aesKey, iv, authTag);
+        } catch (err) {
+          console.error(
+            `Failed to decrypt lastMessage for group ${group._id}:`,
+            err.message,
+          );
+          lastMessage = null;
+        }
+      }
+    }
+
+    return {
+      _id: group._id,
+      id: group.id,
+      name: group.name,
+      avatar: group.avatar ?? null,
+      chatRoomId: group.chatRoomId ?? null,
+      lastMessage,
+      lastMessageAt: group.lastMessageAt ?? null,
+    };
+  });
 };

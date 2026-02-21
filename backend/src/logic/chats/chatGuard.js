@@ -15,6 +15,7 @@ export const ensureChatAccess = async ({ chatRoom, userId }) => {
   // -----------------------------
   // GROUP CHAT
   // -----------------------------
+
   if (chatRoom.contextType === "group") {
     const membership = await membershipService.findMembership({
       userId: normalizedUserId,

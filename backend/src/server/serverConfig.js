@@ -10,23 +10,17 @@ import chatRouter from "../routes/chatRoutes.js";
 import { initSocketServer } from "../logic/socket/index.js";
 import configService from "../lib/classes/configClass.js";
 import { setIo } from "../logic/chats/chatController.js";
-
-// Routes
 import { authRoute } from "../routes/authRoute.js";
 import userRoute from "../routes/userRoutes.js";
-// import postRoute from "../routes/postRoutes.js";
-// import statRoute from "../routes/statRoute.js";
 import groupRouter from "../routes/groupRoutes.js";
 import membershipRouter from "../routes/membershipRoute.js";
 import tournamentRouter from "../routes/tournamentRoutes.js";
 import participantRouter from "../routes/participantRoute.js";
 
-
 const app = express();
 const server = createServer(app);
 
 app.disable("etag");
-
 
 // -------------------------
 // MIDDLEWARES
@@ -39,7 +33,7 @@ app.use(
     origin: allowedOrigins,
     credentials: true,
     optionsSuccessStatus: 200,
-  })
+  }),
 );
 
 // Security headers
@@ -62,10 +56,12 @@ app.use(cookieParser(configService.getOrThrow("COOKIE_SECRET")));
 // Serve uploaded files
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-// Initialize socket.io
-export const io = initSocketServer(server);
-setIo(io);
+let io;
 
+(async () => {
+  io = await initSocketServer(server);
+  setIo(io);
+})();
 
 // -------------------------
 // API VERSIONING

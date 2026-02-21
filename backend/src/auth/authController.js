@@ -1,5 +1,8 @@
 import * as authService from "./authService.js";
-import { ValidationException, BadRequestError } from "../lib/classes/errorClasses.js";
+import {
+  ValidationException,
+  BadRequestError,
+} from "../lib/classes/errorClasses.js";
 import { ValidatorClass } from "../lib/classes/validatorClass.js";
 import path from "path";
 import fs from "fs";
@@ -36,10 +39,8 @@ export const signUp = asyncWrapper(async (req, res) => {
   });
 });
 
-
 export const login = asyncWrapper(async (req, res) => {
-  const { errors, value } = validator.validate(loginSchema, req.body);
-  if (errors) throw new ValidationException(errors);
+  const value = validator.validate(loginSchema, req.body);
 
   const { token, user } = await authService.authenticateUser(value);
 
@@ -54,7 +55,6 @@ export const login = asyncWrapper(async (req, res) => {
     user,
   });
 });
-
 
 /* ================= USER PROFILE ================= */
 
@@ -85,7 +85,7 @@ export const updateUserProfile = asyncWrapper(async (req, res) => {
     if (req.file) {
       fs.unlink(
         path.join("uploads", "profile_pictures", req.file.filename),
-        () => {}
+        () => {},
       );
     }
     throw err;
@@ -105,7 +105,7 @@ export const verifyEmail = asyncWrapper(async (req, res) => {
 
   const user = await authService.verifyUser(
     req.body.email,
-    req.body.verificationCode
+    req.body.verificationCode,
   );
 
   return res.status(200).json({ user });
@@ -161,7 +161,10 @@ export const saveDeviceToken = async (req, res) => {
 
   try {
     const updatedUser = await authService.addDeviceToken(userId, deviceToken);
-    res.json({ message: "Device token saved", deviceTokens: updatedUser.deviceTokens });
+    res.json({
+      message: "Device token saved",
+      deviceTokens: updatedUser.deviceTokens,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to save device token" });
@@ -176,8 +179,14 @@ export const removeDeviceToken = async (req, res) => {
     return res.status(400).json({ message: "No device token provided" });
 
   try {
-    const updatedUser = await authService.removeDeviceToken(userId, deviceToken);
-    res.json({ message: "Device token removed", deviceTokens: updatedUser.deviceTokens });
+    const updatedUser = await authService.removeDeviceToken(
+      userId,
+      deviceToken,
+    );
+    res.json({
+      message: "Device token removed",
+      deviceTokens: updatedUser.deviceTokens,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to remove device token" });

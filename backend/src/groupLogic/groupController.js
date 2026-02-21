@@ -26,8 +26,7 @@ export const getGroupByName = asyncWrapper(async (req, res) => {
 // CREATE GROUP
 // ==================================================
 export const createGroup = asyncWrapper(async (req, res) => {
-  const { errors, value } = validator.validate(createGroupSchema, req.body);
-  if (errors) throw new ValidationException(errors);
+  const value = validator.validate(createGroupSchema, req.body);
 
   if (!req.files?.avatar) {
     throw new Error("Avatar file is required");

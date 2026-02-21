@@ -5,7 +5,7 @@ export function convertHumanReadableTimeToMilliseconds(timestring) {
   const match = timestring.match(/^(\d+)(\w+)$/);
   if (!match) {
     throw new Error(
-      'Invalid time format. Expected format: "90d" | "1h" | "3w"'
+      'Invalid time format. Expected format: "90d" | "1h" | "3w"',
     );
   }
 
@@ -34,7 +34,7 @@ export function convertHumanReadableTimeToMilliseconds(timestring) {
       break;
     default:
       throw new Error(
-        "Invalid time unit. Expected units: ms | s | m | h | d | w"
+        "Invalid time unit. Expected units: ms | s | m | h | d | w",
       );
   }
 
@@ -45,6 +45,16 @@ export function asyncWrapper(callback) {
   return async function (req, res, next) {
     try {
       await callback(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+export function socketAsyncWrapper(callback) {
+  return async function (socket, next) {
+    try {
+      await callback(socket, next);
     } catch (error) {
       next(error);
     }
