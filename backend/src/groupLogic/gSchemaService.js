@@ -1,4 +1,5 @@
 import Group from "../groupLogic/groupSchema.js";
+import { serializeGroup } from "../lib/serializeUser.js";
 
 // Create a new group
 export const createGroup = async (payload) => {
@@ -25,10 +26,12 @@ export const findGroupsByIds = async (
 };
 
 // db/groupDb.js
-export const findGroupByName = async (groupName) => {
-  const name = groupName.trim();
-  const regex = new RegExp(`^${name}$`, "i");
-  return await Group.findOne({ groupName: regex });
+export const searchGroupsByName = async ({ name }) => {
+  if (!name || !name.trim()) {
+    return await Group.find({}).limit(20);
+  }
+  const regex = new RegExp(name.trim(), "i");
+  return await Group.find({ name: regex }).limit(20);
 };
 
 // Get group by joinCode

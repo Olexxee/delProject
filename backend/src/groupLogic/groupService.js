@@ -18,15 +18,15 @@ import {
   NotFoundException,
   ForbiddenError,
 } from "../lib/classes/errorClasses.js";
+import { groupCollapsed } from "console";
 
 /* =====================================================
    GET GROUP
 ===================================================== */
 
-export const getGroupByName = async ({ name }) => {
-  const group = await groupDb.findGroupByName(name);
-  if (!group) throw new NotFoundException("Group not found");
-  return group;
+export const searchGroupsByName = async ({ name }) => {
+  const groups = await groupDb.searchGroupsByName({ name });
+  return groups.map(serializeGroup);
 };
 
 /* =====================================================
@@ -316,10 +316,11 @@ export const getUserGroupsWithLastMessage = async ({
 }) => {
   const skip = (page - 1) * limit;
 
-  const memberships = await membershipCrud.findGroupsByUser(
-    { userId, status: "active" },
-    { skip, limit },
-  );
+  // Get all active memberships (no skip here)
+  const memberships = await membershipCrud.findGroupsByUser({
+    userId,
+    status: "active",
+  });
 
   if (!memberships.length) return [];
 
@@ -328,16 +329,7 @@ export const getUserGroupsWithLastMessage = async ({
   const groups = await Group.aggregate([
     { $match: { _id: { $in: groupIds } } },
 
-    {
-      $lookup: {
-        from: "media",
-        localField: "avatar",
-        foreignField: "_id",
-        as: "avatarDoc",
-      },
-    },
-    { $unwind: { path: "$avatarDoc", preserveNullAndEmptyArrays: true } },
-
+    // Join ChatRoom (contains lastMessage metadata)
     {
       $lookup: {
         from: "chatrooms",
@@ -346,77 +338,58 @@ export const getUserGroupsWithLastMessage = async ({
         as: "chatRoomDoc",
       },
     },
-    { $unwind: { path: "$chatRoomDoc", preserveNullAndEmptyArrays: true } },
-
     {
-      $lookup: {
-        from: "messages",
-        let: { chatRoomId: "$chatRoom" },
-        pipeline: [
-          { $match: { $expr: { $eq: ["$chatRoom", "$$chatRoomId"] } } },
-          { $sort: { createdAt: -1 } },
-          { $limit: 1 },
-        ],
-        as: "lastMessageDoc",
+      $unwind: {
+        path: "$chatRoomDoc",
+        preserveNullAndEmptyArrays: true,
       },
     },
-    { $unwind: { path: "$lastMessageDoc", preserveNullAndEmptyArrays: true } },
+
+    // Sort by last activity
+    {
+      $sort: {
+        "chatRoomDoc.lastMessageAt": -1,
+      },
+    },
+
+    // Pagination
+    { $skip: skip },
+    { $limit: limit },
+
+    // Avatar lookup
+    {
+      $lookup: {
+        from: "media",
+        localField: "avatar",
+        foreignField: "_id",
+        as: "avatarDoc",
+      },
+    },
+    {
+      $unwind: {
+        path: "$avatarDoc",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
 
     {
       $project: {
-        id: "$_id",
+        _id: 1,
         name: 1,
         avatar: "$avatarDoc.url",
         chatRoomId: "$chatRoomDoc._id",
-        aesKey: "$chatRoomDoc.aesKey", // used for decryption below, stripped before return
-        lastMessageRaw: {
-          $cond: [
-            { $ifNull: ["$lastMessageDoc", false] },
-            {
-              encryptedContent: "$lastMessageDoc.encryptedContent",
-              iv: "$lastMessageDoc.iv",
-              authTag: "$lastMessageDoc.authTag",
-              content: "$lastMessageDoc.content",
-              sender: "$lastMessageDoc.sender",
-              createdAt: "$lastMessageDoc.createdAt",
-            },
-            null,
-          ],
-        },
-        lastMessageAt: "$lastMessageDoc.createdAt",
+        lastMessage: "$chatRoomDoc.lastMessagePreview",
+        lastMessageAt: "$chatRoomDoc.lastMessageAt",
       },
     },
   ]);
 
-  return groups.map((group) => {
-    let lastMessage = null;
-
-    if (group.lastMessageRaw) {
-      const { encryptedContent, iv, authTag, content } = group.lastMessageRaw;
-
-      if (content) {
-        lastMessage = content;
-      } else if (encryptedContent && iv && authTag && group.aesKey) {
-        try {
-          lastMessage = decrypt(encryptedContent, group.aesKey, iv, authTag);
-        } catch (err) {
-          console.error(
-            `Failed to decrypt lastMessage for group ${group._id}:`,
-            err.message,
-          );
-          lastMessage = null;
-        }
-      }
-    }
-
-    return {
-      _id: group._id,
-      id: group.id,
-      name: group.name,
-      avatar: group.avatar ?? null,
-      chatRoomId: group.chatRoomId ?? null,
-      lastMessage,
-      lastMessageAt: group.lastMessageAt ?? null,
-    };
-  });
+  return groups.map((group) => ({
+    _id: group._id,
+    name: group.name,
+    avatar: group.avatar ?? null,
+    chatRoomId: group.chatRoomId ?? null,
+    lastMessage: group.lastMessage ?? null,
+    lastMessageAt: group.lastMessageAt ?? null,
+  }));
 };

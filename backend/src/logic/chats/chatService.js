@@ -110,52 +110,66 @@ class ChatService {
       throw new BadRequestError("Invalid chatRoomId");
     }
 
-    // 2️⃣ Fetch the chat room and check AES key + participants
+    // 2️⃣ Fetch chat room with AES key + participants
     const room = await ChatRoom.findById(chatRoomId).select(
       "+aesKey participants name",
     );
     if (!room) throw new NotFoundException("Chat room not found");
 
-    // 3️⃣ Ensure the sender has access to this chat room
+    // 3️⃣ Ensure sender has access
     await ensureChatAccess({ chatRoom: room, userId: senderId });
 
-    // 4️⃣ Create a new message instance
-    const message = new Message({
-      chatRoom: chatRoomId,
-      sender: senderId,
-      content: content?.trim() || null, // plaintext triggers encryption in pre-save
-      media: mediaIds,
-      deliveredTo: [senderId],
-      readBy: [senderId],
+    const session = await mongoose.startSession();
+
+    let messageDoc;
+
+    await session.withTransaction(async () => {
+      // 4️⃣ Create message (Message.create already saves it)
+      const [message] = await Message.create(
+        [
+          {
+            chatRoom: chatRoomId,
+            sender: senderId,
+            content: content?.trim() || null,
+            media: mediaIds,
+            deliveredTo: [senderId],
+            readBy: [senderId],
+          },
+        ],
+        { session },
+      );
+
+      messageDoc = message; // store for later use
+
+      // 5️⃣ Update chat room with last message info
+      await ChatRoom.updateOne(
+        { _id: chatRoomId },
+        {
+          $set: {
+            lastMessageId: message._id,
+            lastMessageAt: message.createdAt,
+            lastMessagePreview: content ?? "[Encrypted message]",
+          },
+        },
+        { session },
+      );
     });
 
-    // 5️⃣ Save message (pre-save hook handles encryption)
-    await message.save();
+    session.endSession();
 
-    // 6️⃣ Update chat room lastMessageAt timestamp
-    await ChatRoom.updateOne(
-      { _id: chatRoomId },
-      { lastMessageAt: new Date() },
-    );
-
-    console.log("Message before send:", {
-      id: message._id,
-      content: message.content,
-      encryptedContent: message.encryptedContent,
-      decrypted: message.decryptedContent,
-    });
-
-    console.log(
-      `Message created in room "${room.name || room._id}" by user ${senderId}`,
-    );
-
-    // 7️⃣ Populate sender details for response
-    return await message.populate(
+    // 6️⃣ Populate sender details
+    await messageDoc.populate(
       "sender",
       "username firstName lastName profilePicture",
     );
-  }
 
+    console.log("Message created:", {
+      id: messageDoc._id,
+      content: messageDoc.content,
+    });
+
+    return messageDoc;
+  }
   /**
    * Mark messages as delivered
    */

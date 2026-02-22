@@ -11,15 +11,10 @@ import {
 const validator = new ValidatorClass();
 
 // GET GROUP BY NAME
-export const getGroupByName = asyncWrapper(async (req, res) => {
+export const searchGroupByName = asyncWrapper(async (req, res) => {
   const { name } = req.params;
-
-  const group = await groupService.getGroupByName({ name });
-
-  res.status(200).json({
-    success: true,
-    group,
-  });
+  const groups = await groupService.searchGroupsByName({ name });
+  res.status(200).json({ success: true, groups });
 });
 
 // ==================================================

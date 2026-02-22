@@ -8,6 +8,9 @@ const chatRoomSchema = new mongoose.Schema(
     participants: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     aesKey: { type: String, required: true, select: true },
     encryptionVersion: { type: Number, default: 1 },
+    lastMessagePreview: {
+      type: String,
+    },
     lastMessageAt: { type: Date, default: Date.now },
   },
   { timestamps: true },

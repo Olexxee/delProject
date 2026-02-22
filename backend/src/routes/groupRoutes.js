@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
   createGroup,
-  getGroupByName,
+  searchGroupByName,
   generateInviteLink,
   joinGroupByInvite,
   // getGroupMembers,
@@ -31,7 +31,7 @@ groupRouter.post(
 );
 
 // Get group by name
-groupRouter.get("/name/:name", authMiddleware, getGroupByName);
+groupRouter.get("/name/:name", authMiddleware, searchGroupByName);
 
 // Generate invite link (admin only)
 groupRouter.get(
