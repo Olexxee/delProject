@@ -2,7 +2,6 @@ import * as groupDb from "./gSchemaService.js";
 import * as membershipService from "./membershipService.js";
 import * as membershipCrud from "./membershipSchemaService.js";
 import * as userService from "../user/userService.js";
-import { decrypt } from "../lib/encryption.js";
 import { serializeGroup } from "../lib/serializeUser.js";
 import NotificationService from "../logic/notifications/notificationService.js";
 import { NotificationTypes } from "../logic/notifications/notificationTypes.js";
@@ -18,8 +17,7 @@ import {
   NotFoundException,
   ForbiddenError,
 } from "../lib/classes/errorClasses.js";
-import { groupCollapsed } from "console";
-
+import * as tournamentService from "../tournamentLogic/tournamentService.js";
 /* =====================================================
    GET GROUP
 ===================================================== */
@@ -39,20 +37,16 @@ export const createGroup = async ({
   avatar,
   chatBroadcaster,
 }) => {
-  // 1️⃣ Validate user
   const user = await userService.findUserById(userId);
-  console.log("User:", user);
   if (!user) {
     throw new NotFoundException("User not found");
   }
 
-  // 2️⃣ Prevent duplicate group names
   const existingGroup = await groupDb.findGroupByName(name);
   if (existingGroup) {
     throw new ConflictException("A group with this name already exists");
   }
 
-  // 3️⃣ Create group
   const aesKey = generateRoomKey();
 
   let group = await groupDb.createGroup({
@@ -113,7 +107,6 @@ export const createGroup = async ({
     },
   });
 
-  // 🔊 Broadcast
   if (chatBroadcaster) {
     chatBroadcaster.broadcastMessage(group._id, {
       system: true,
@@ -149,6 +142,61 @@ export const createGroup = async ({
     group: serializeGroup(group),
     chatRoom,
     user: safeUser,
+  };
+};
+
+export const getGroupOverview = async ({ groupId, userId }) => {
+  if (!mongoose.Types.ObjectId.isValid(groupId)) {
+    throw new BadRequestError("Invalid group id");
+  }
+
+  const group = await Group.findById(groupId).populate("avatar").lean();
+
+  if (!group || !group.isActive) {
+    throw new NotFoundException("Group not found");
+  }
+
+  const membership = await membershipService.findMembership({
+    userId,
+    groupId,
+  });
+
+  if (!membership && group.privacy !== "public") {
+    throw new ForbiddenError("You are not a member of this group");
+  }
+
+  const myRole = membership?.role || "member";
+
+  const membersPreview = await membershipCrud.getMemberPreview(groupId);
+
+  const activeTournament =
+    await tournamentService.getActiveTournamentByGroup(groupId);
+
+  const tournamentsPreview = await tournamentService.getTournamentPreview({
+    groupId,
+    limit: 3,
+    includeDraft: myRole === "admin",
+  });
+
+  // 5️⃣ Pending join requests (admin only)
+  let pendingJoinRequestCount;
+  if (myRole === "admin") {
+    pendingJoinRequestCount =
+      await membershipService.countPendingRequests(groupId);
+  }
+
+  return {
+    id: group._id,
+    name: group.name,
+    description: group.bio,
+    avatar: group.avatar?.url ?? null,
+    privacy: group.privacy,
+    memberCount: group.totalMembers,
+    myRole,
+    pendingJoinRequestCount,
+    activeTournament,
+    tournamentsPreview,
+    membersPreview,
   };
 };
 

@@ -17,6 +17,16 @@ export const templates = {
     `,
   }),
 
+  GROUP_CREATED: ({ firstName, groupName }) => ({
+    subject: `Your group "${groupName}" is ready to jam! 🎉`,
+    body: `
+      Hi ${firstName},
+      Your group "${groupName}" has been successfully created!
+      You can now invite friends, share the group, and start connecting.
+      👉 Go to your groups and start jamming!
+    `,
+  }),
+
   PROFILE_REMINDER: ({ firstName }) => ({
     subject: `People want to meet you, ${firstName} 👀`,
     body: `
@@ -28,7 +38,7 @@ export const templates = {
   }),
 
   OTP_EMAIL: ({ firstName, code }) => ({
-    from: process.env.RESEND_FROM_EMAIL || 'JAMI <support@support.myjami.app>',
+    from: process.env.RESEND_FROM_EMAIL || "JAMI <support@support.myjami.app>",
     subject: `Your JAMI verification code: ${code}`,
     html: `
 <!DOCTYPE html>
@@ -85,10 +95,10 @@ export const templates = {
 </body>
 </html>
     `,
-  text: `Hi ${firstName}! Your JAMI verification code is: ${code}. This code expires in 10 minutes.`
-}),
+    text: `Hi ${firstName}! Your JAMI verification code is: ${code}. This code expires in 10 minutes.`,
+  }),
 
-NEW_CONNECTION_REQUEST: ({ firstName, senderName }) => ({
+  NEW_CONNECTION_REQUEST: ({ firstName, senderName }) => ({
     subject: `${senderName} wants to connect with you on Jami 🤝`,
     body: `
       Hi ${firstName},

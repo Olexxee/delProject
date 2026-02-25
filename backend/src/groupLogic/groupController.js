@@ -24,7 +24,7 @@ export const createGroup = asyncWrapper(async (req, res) => {
   const value = validator.validate(createGroupSchema, req.body);
 
   if (!req.files?.avatar) {
-    throw new Error("Avatar file is required");
+    throw new ValidationException("Avatar file is required");
   }
 
   const avatarFiles = req.files?.avatar;
@@ -54,6 +54,20 @@ export const createGroup = asyncWrapper(async (req, res) => {
     success: true,
     message: "Group created successfully",
     ...result,
+  });
+});
+
+export const getGroupOverview = asyncWrapper(async (req, res) => {
+  const { groupId } = req.params;
+
+  const overview = await groupService.getGroupOverview({
+    groupId,
+    userId: req.user._id,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: overview,
   });
 });
 

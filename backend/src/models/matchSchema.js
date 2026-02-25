@@ -10,7 +10,7 @@ const participantSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  goals: {  // 🆕 ADD THIS FOR FOOTBALL GOALS
+  goals: {
     type: Number,
     default: 0,
   },
@@ -37,7 +37,6 @@ const matchSchema = new mongoose.Schema(
       default: false,
     },
     closedAt: Date,
-    // 🆕 ADD THESE FOOTBALL-SPECIFIC FIELDS
     homeTeam: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -58,30 +57,30 @@ const matchSchema = new mongoose.Schema(
       type: Number,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // ADD POST-SAVE MIDDLEWARE FOR FIXTURE SYNC
-matchSchema.post('save', async function(match) {
+matchSchema.post("save", async function (match) {
   // Only update when match is closed
-  if (match.isClosed && match.isModified('isClosed')) {
+  if (match.isClosed && match.isModified("isClosed")) {
     try {
       // Update fixture with match results
-      const Fixture = (await import('./fixtureSchema.js')).default;
-      
+      const Fixture = (await import("./fixtureSchema.js")).default;
+
       // Find corresponding fixture
       const fixture = await Fixture.findOne({
         tournamentId: match.tournamentId,
         $or: [
-          { 
+          {
             homeTeam: match.homeTeam,
-            awayTeam: match.awayTeam
+            awayTeam: match.awayTeam,
           },
           {
             homeTeam: match.awayTeam,
-            awayTeam: match.homeTeam
-          }
-        ]
+            awayTeam: match.homeTeam,
+          },
+        ],
       });
 
       if (fixture) {
@@ -93,23 +92,25 @@ matchSchema.post('save', async function(match) {
           awayScore: match.awayGoals,
           isCompleted: true,
           completedAt: new Date(),
-          status: 'completed',
-          matchId: match._id
+          status: "completed",
+          matchId: match._id,
         });
 
-        console.log(`🏟️ Fixture updated: ${match.homeGoals}-${match.awayGoals}`);
+        console.log(
+          `🏟️ Fixture updated: ${match.homeGoals}-${match.awayGoals}`,
+        );
       }
 
       // Update participant stats
-      const { updateParticipantStats } = await import('../tournamentLogic/participantService.js');
+      const { updateParticipantStats } =
+        await import("../tournamentLogic/participantService.js");
       await updateParticipantStats({
         matchId: match._id,
         tournamentId: match.tournamentId,
-        participants: match.participants
+        participants: match.participants,
       });
-      
     } catch (error) {
-      console.error('Error updating match results:', error);
+      console.error("Error updating match results:", error);
     }
   }
 });

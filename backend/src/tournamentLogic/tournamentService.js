@@ -184,6 +184,65 @@ export const getUpcomingFixturesForUser = async (userId) => {
   return upcomingFixtures;
 };
 
+export const getTournamentPreview = async (tournamentId, userId) => {
+  const tournament = await tournamentDb.findTournamentById(tournamentId);
+  if (!tournament) throw new NotFoundException("Tournament not found");
+  const participant = tournament.participants.find(
+    (p) => p.userId.toString() === userId.toString(),
+  );
+  const myRole = participant ? participant.status : null;
+  const myStats = await userStatsService.getUserTournamentStats(
+    tournamentId,
+    userId,
+  );
+
+  const upcomingFixtures = await fixtureDb.getUpcomingFixtures(tournamentId);
+
+  const nextMatch = upcomingFixtures.length > 0 ? upcomingFixtures[0] : null;
+
+  let enrichedNextMatch = null;
+  if (nextMatch) {
+    const opponentId =
+      nextMatch.homeTeam.toString() === userId.toString()
+        ? nextMatch.awayTeam
+        : nextMatch.homeTeam;
+
+    const opponent = await userService.getUserById(opponentId);
+
+    enrichedNextMatch = {
+      id: nextMatch._id,
+      matchday: nextMatch.matchday,
+      scheduledDate: nextMatch.scheduledDate,
+      isHome: nextMatch.homeTeam.toString() === userId.toString(),
+      opponent: {
+        id: opponent._id,
+        username: opponent.username,
+        profilePicture: opponent.profilePicture,
+      },
+    };
+  }
+
+  return {
+    tournament: {
+      id: tournament._id,
+      name: tournament.name,
+      status: tournament.status,
+      type: tournament.type,
+      currentMatchday: tournament.currentMatchday,
+      totalMatchdays: tournament.totalMatchdays,
+      startDate: tournament.startDate,
+      rules: tournament.rules,
+    },
+    userContext: {
+      role: myRole,
+      isRegistered: !!myRole,
+      stats: myStats || { wins: 0, draws: 0, losses: 0, points: 0 },
+    },
+    nextMatch: enrichedNextMatch,
+    // You could also add a 'recentForm' array or 'topScorer' snippet here
+  };
+};
+
 export const updateTournamentStatus = async ({ tournamentId, newStatus }) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) throw new NotFoundException("Tournament not found");

@@ -16,11 +16,22 @@ export const findMembersByGroupId = async (groupId) => {
 };
 
 // Get all memberships for a user
-export const findGroupsByUser = async ({ userId, status = "active" }, { skip = 0, limit = 20 } = {}) => {
+export const findGroupsByUser = async (
+  { userId, status = "active" },
+  { skip = 0, limit = 20 } = {},
+) => {
   return Membership.find({ userId, status })
     .sort({ joinedAt: -1 })
     .skip(skip)
     .limit(limit);
+};
+
+export const getMemberPreview = async (groupId) => {
+  const members = await Membership.find({ groupId })
+    .populate("userId", "username profilePicture")
+    .select("roleInGroup status joinedAt")
+    .limit(5);
+  return members;
 };
 
 // Count memberships for a user (for pagination or stats)

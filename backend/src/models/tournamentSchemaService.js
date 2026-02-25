@@ -17,7 +17,7 @@ export const findTournamentById = async (tournamentId) => {
 export const findTournamentsByGroup = async (groupId, status = null) => {
   const query = { groupId };
   if (status) query.status = status;
-  
+
   return await Tournament.find(query)
     .populate("createdBy", "username email")
     .sort({ createdAt: -1 });
@@ -33,18 +33,18 @@ export const findTournamentByCode = async (tournamentCode) => {
 // Check if tournament name exists in group
 export const findTournamentByNameInGroup = async (name, groupId) => {
   const regex = new RegExp(`^${name.trim()}$`, "i");
-  return await Tournament.findOne({ 
-    name: regex, 
+  return await Tournament.findOne({
+    name: regex,
     groupId,
-    status: { $ne: "cancelled" }
+    status: { $ne: "cancelled" },
   });
 };
 
 // Update tournament
 export const updateTournament = async (tournamentId, updatePayload) => {
-  return await Tournament.findByIdAndUpdate(tournamentId, updatePayload, { 
+  return await Tournament.findByIdAndUpdate(tournamentId, updatePayload, {
     new: true,
-    runValidators: true 
+    runValidators: true,
   });
 };
 
@@ -54,10 +54,18 @@ export const addParticipant = async (tournamentId, userId) => {
     tournamentId,
     {
       $push: { participants: { userId } },
-      $inc: { currentParticipants: 1 }
+      $inc: { currentParticipants: 1 },
     },
-    { new: true }
+    { new: true },
   );
+};
+
+export const getUserRoleInTournament = async (tournamentId, userId) => {
+  const tournament =
+    await Tournament.findById(tournamentId).select("participants");
+  if (!tournament) throw new NotFoundException("Tournament not found");
+  const role = tournament.role;
+  return role;
 };
 
 // Remove participant from tournament
@@ -66,9 +74,9 @@ export const removeParticipant = async (tournamentId, userId) => {
     tournamentId,
     {
       $pull: { participants: { userId } },
-      $inc: { currentParticipants: -1 }
+      $inc: { currentParticipants: -1 },
     },
-    { new: true }
+    { new: true },
   );
 };
 
@@ -76,7 +84,7 @@ export const removeParticipant = async (tournamentId, userId) => {
 export const findUserActiveTournaments = async (userId) => {
   return await Tournament.find({
     "participants.userId": userId,
-    status: { $in: ["registration", "ongoing"] }
+    status: { $in: ["registration", "ongoing"] },
   }).populate("groupId", "groupName");
 };
 
@@ -85,7 +93,7 @@ export const findUserInTournament = async (tournamentId, userId) => {
   return await Tournament.findOne({
     _id: tournamentId,
     "participants.userId": userId,
-    "participants.status": "registered"
+    "participants.status": "registered",
   });
 };
 
@@ -109,30 +117,33 @@ export const updateParticipantStatus = async (tournamentId, userId, status) => {
     {
       $set: { "participants.$.status": status },
     },
-    { new: true }
+    { new: true },
   );
 };
 
 // Get tournaments user is registered in
-export const findUserTournaments = async (userId, status = ["registered", "confirmed"]) => {
+export const findUserTournaments = async (
+  userId,
+  status = ["registered", "confirmed"],
+) => {
   return await Tournament.find({
     "participants.userId": userId,
     "participants.status": { $in: status },
-    status: { $in: ["registration", "ongoing"] }
+    status: { $in: ["registration", "ongoing"] },
   })
-  .populate("groupId", "groupName")
-  .select("name status startDate endDate currentMatchday totalMatchdays");
+    .populate("groupId", "groupName")
+    .select("name status startDate endDate currentMatchday totalMatchdays");
 };
 
 // Check tournament capacity
 export const checkTournamentCapacity = async (tournamentId) => {
-  const tournament = await Tournament.findById(tournamentId)
-    .select("currentParticipants maxParticipants");
-  
+  const tournament = await Tournament.findById(tournamentId).select(
+    "currentParticipants maxParticipants",
+  );
+
   return {
     isFull: tournament.currentParticipants >= tournament.maxParticipants,
     availableSlots: tournament.maxParticipants - tournament.currentParticipants,
-    ...tournament.toObject()
+    ...tournament.toObject(),
   };
 };
-

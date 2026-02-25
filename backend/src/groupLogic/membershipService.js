@@ -14,61 +14,57 @@ import {
 export const createMembership = async (payload) => {
   const { userId, groupId, roleInGroup = "member" } = payload;
 
- const session = await mongoose.startSession();
-session.startTransaction();
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-try {
-  const group = await groupDb.findGroupById(groupId, session);
-  if (!group) throw new NotFoundException("Group not found");
+  try {
+    const group = await groupDb.findGroupById(groupId, session);
+    if (!group) throw new NotFoundException("Group not found");
 
-  const existing = await membershipService.findMembership(
-    { userId, groupId },
-    session
-  );
-  if (existing) {
-    await session.commitTransaction();
-    return existing;
-  }
+    const existing = await membershipService.findMembership(
+      { userId, groupId },
+      session,
+    );
+    if (existing) {
+      await session.commitTransaction();
+      return existing;
+    }
 
-  const membership = await membershipService.createMembership(
-    {
+    const membership = await membershipService.createMembership(
+      {
+        userId,
+        groupId,
+        roleInGroup,
+        status: "active",
+      },
+      session,
+    );
+
+    await groupDb.updateGroup(groupId, { $inc: { totalMembers: 1 } }, session);
+
+    await userService.findAndUpdateUserById(
       userId,
-      groupId,
-      roleInGroup,
-      status: "active",
-    },
-    session
-  );
+      { $addToSet: { groups: group.name } },
+      session,
+    );
 
-  await groupDb.updateGroup(
-    groupId,
-    { $inc: { totalMembers: 1 } },
-    session
-  );
+    await userStats.createUserStats(
+      {
+        user: userId,
+        group: groupId,
+        tournamentsPlayedin: null,
+      },
+      session,
+    );
 
-  await userService.findAndUpdateUserById(
-    userId,
-    { $addToSet: { groups: group.name } },
-    session
-  );
-
-  await userStats.createUserStats(
-    {
-      user: userId,
-      group: groupId,
-      tournamentsPlayedin: null,
-    },
-    session
-  );
-
-  await session.commitTransaction();
-  return membership;
-} catch (err) {
-  await session.abortTransaction();
-  throw err;
-} finally {
-  session.endSession();
-}
+    await session.commitTransaction();
+    return membership;
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
 
   return membership;
 };
@@ -95,7 +91,7 @@ export const updateMembership = async (payload) => {
     updateFields,
     {
       new: true,
-    }
+    },
   );
 };
 
@@ -141,5 +137,3 @@ export const banUserInGroup = async (payload) => {
     status: "banned",
   });
 };
-
-

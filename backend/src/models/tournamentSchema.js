@@ -100,7 +100,7 @@ const tournamentSchema = new mongoose.Schema(
       default: "registration",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Index for efficient queries
