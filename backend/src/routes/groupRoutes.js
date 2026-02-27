@@ -4,12 +4,15 @@ import {
   searchGroupByName,
   generateInviteLink,
   joinGroupByInvite,
-  // getGroupMembers,
   getMyGroups,
   kickUserFromGroup,
   leaveGroup,
   changeMemberRole,
   updateGroupMedia,
+  getGroupOverview,
+  requestToJoinGroup,
+  resolveJoinRequest,
+  getPendingJoinRequests,
 } from "../groupLogic/groupController.js";
 import { getDiscoverGroups } from "../groupLogic/discoverGroupsController.js";
 import { authMiddleware } from "../middlewares/authenticationMdw.js";
@@ -33,6 +36,15 @@ groupRouter.post(
 // Get group by name
 groupRouter.get("/name/:name", authMiddleware, searchGroupByName);
 
+// Get all groups of the user
+groupRouter.get("/my-groups", authMiddleware, getMyGroups);
+
+// Discover groups based on activity
+groupRouter.get("/discover", authMiddleware, getDiscoverGroups);
+
+// Group overview (members, tournaments, pending count for admins)
+groupRouter.get("/:groupId/overview", authMiddleware, getGroupOverview);
+
 // Generate invite link (admin only)
 groupRouter.get(
   "/:groupId/invite",
@@ -44,10 +56,34 @@ groupRouter.get(
 // Join a group via invite link
 groupRouter.post("/join/:joinCode", authMiddleware, joinGroupByInvite);
 
-// View group members
-// groupRouter.get("/:groupId/members", authMiddleware, getGroupMembers);
+// -----------------------
+// JOIN REQUESTS
+// -----------------------
 
-// Kick a user from group (admin)
+// Request to join a group (public = joins instantly, private = pending)
+groupRouter.post("/:groupId/join-request", authMiddleware, requestToJoinGroup);
+
+// Get all pending join requests (admin only)
+groupRouter.get(
+  "/:groupId/join-requests",
+  authMiddleware,
+  requireGroupAdmin,
+  getPendingJoinRequests,
+);
+
+// Approve or reject a join request (admin only) — body: { action: "approve" | "reject" }
+groupRouter.post(
+  "/:groupId/join-requests/:userId",
+  authMiddleware,
+  requireGroupAdmin,
+  resolveJoinRequest,
+);
+
+// -----------------------
+// MEMBER MANAGEMENT (ADMIN)
+// -----------------------
+
+// Kick a user from group
 groupRouter.post(
   "/:groupId/kick/:userId",
   authMiddleware,
@@ -55,10 +91,7 @@ groupRouter.post(
   kickUserFromGroup,
 );
 
-// Leave group
-groupRouter.post("/:groupId/leave", authMiddleware, leaveGroup);
-
-// Change member role (admin)
+// Change member role
 groupRouter.post(
   "/:groupId/change-role/:userId",
   authMiddleware,
@@ -66,16 +99,13 @@ groupRouter.post(
   changeMemberRole,
 );
 
-// Get all groups of the user
-groupRouter.get("/my-groups", authMiddleware, getMyGroups);
-
-// Discover groups based on activity
-groupRouter.get("/discover", authMiddleware, getDiscoverGroups);
+// Leave group
+groupRouter.post("/:groupId/leave", authMiddleware, leaveGroup);
 
 // -----------------------
 // UPLOAD GROUP MEDIA
 // -----------------------
-// Only 1 avatar or banner allowed per upload
+
 groupRouter.post(
   "/:groupId/media",
   authMiddleware,

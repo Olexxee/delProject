@@ -8,6 +8,7 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenError,
+  BadRequestError,
 } from "../lib/classes/errorClasses.js";
 
 // Create membership (on join, group creation, createUserStats)
@@ -65,8 +66,6 @@ export const createMembership = async (payload) => {
   } finally {
     session.endSession();
   }
-
-  return membership;
 };
 
 // Get membership by user + group
@@ -119,13 +118,141 @@ export const assertIsAdmin = async (payload) => {
   }
 };
 
+// Request to join a private group (status: "pending")
+export const requestToJoinGroup = async (payload) => {
+  const { userId, groupId } = payload;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const group = await groupDb.findGroupById(groupId, session);
+    if (!group) throw new NotFoundException("Group not found");
+
+    const existing = await membershipService.findMembership(
+      { userId, groupId },
+      session,
+    );
+
+    if (existing) {
+      await session.commitTransaction();
+      if (existing.status === "pending") {
+        throw new ConflictException("You already have a pending join request");
+      }
+      if (existing.status === "active") {
+        throw new ConflictException("You are already a member of this group");
+      }
+      if (existing.status === "banned") {
+        throw new ForbiddenError("You are banned from this group");
+      }
+    }
+
+    const membership = await membershipService.createMembership(
+      {
+        userId,
+        groupId,
+        roleInGroup: "member",
+        status: "pending",
+      },
+      session,
+    );
+
+    await session.commitTransaction();
+    return membership;
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
+};
+
+// Approve or reject a pending join request (admin only)
+export const resolveJoinRequest = async (payload) => {
+  const { adminId, groupId, targetUserId, action } = payload;
+
+  if (!["approve", "reject"].includes(action)) {
+    throw new BadRequestError("Action must be 'approve' or 'reject'");
+  }
+
+  await assertIsAdmin({ userId: adminId, groupId });
+
+  const targetMembership = await membershipService.findMembership({
+    userId: targetUserId,
+    groupId,
+  });
+
+  if (!targetMembership) {
+    throw new NotFoundException("No join request found for this user");
+  }
+
+  if (targetMembership.status !== "pending") {
+    throw new ConflictException("This user does not have a pending request");
+  }
+
+  if (action === "reject") {
+    await membershipService.removeMembership({ userId: targetUserId, groupId });
+    return { action: "rejected", userId: targetUserId };
+  }
+
+  // Approve — activate membership and bump member count
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const approved = await membershipService.updateMembership(
+      { userId: targetUserId, groupId },
+      { status: "active" },
+      { new: true },
+      session,
+    );
+
+    await groupDb.updateGroup(groupId, { $inc: { totalMembers: 1 } }, session);
+
+    const group = await groupDb.findGroupById(groupId, session);
+    await userService.findAndUpdateUserById(
+      targetUserId,
+      { $addToSet: { groups: group.name } },
+      session,
+    );
+
+    await userStats.createUserStats(
+      { user: targetUserId, group: groupId, tournamentsPlayedin: null },
+      session,
+    );
+
+    await session.commitTransaction();
+    return { action: "approved", membership: approved };
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
+};
+
+export const countPendingRequests = async (groupId, status = "pending") => {
+  return await membershipService.countMemberships({
+    groupId,
+    status,
+  });
+};
+
+// Get all pending join requests for a group
+export const getPendingRequests = async (groupId) => {
+  return await membershipService.findMemberships(
+    { groupId, status: "pending" },
+    { populate: { path: "userId", select: "username email profilePicture" } },
+  );
+};
+
 // Optional: Ban a user from group
 export const banUserInGroup = async (payload) => {
   const { adminId, groupId, targetUserId } = payload;
 
   await assertIsAdmin({ userId: adminId, groupId });
 
-  const targetMembership = await MembershipService.findMembership({
+  const targetMembership = await membershipService.findMembership({
     userId: targetUserId,
     groupId,
   });

@@ -201,6 +201,67 @@ export const generateInviteLink = asyncWrapper(async (req, res) => {
   });
 });
 
+// ==================================================
+// REQUEST TO JOIN GROUP
+// ==================================================
+export const requestToJoinGroup = asyncWrapper(async (req, res) => {
+  const { groupId } = req.params;
+
+  const result = await groupService.requestToJoinGroup({
+    userId: req.user._id,
+    groupId,
+  });
+
+  // Public group → joined immediately; private → pending
+  const isPending = result.status === "pending";
+
+  res.status(isPending ? 202 : 200).json({
+    success: true,
+    message: isPending
+      ? "Join request sent. Awaiting admin approval."
+      : "Successfully joined the group",
+    membership: result,
+  });
+});
+
+// ==================================================
+// RESOLVE JOIN REQUEST (ADMIN: APPROVE / REJECT)
+// ==================================================
+export const resolveJoinRequest = asyncWrapper(async (req, res) => {
+  const { groupId, userId: targetUserId } = req.params;
+  const { action } = req.body; // "approve" | "reject"
+
+  const result = await groupService.resolveJoinRequest({
+    adminId: req.user._id,
+    groupId,
+    targetUserId,
+    action,
+  });
+
+  res.status(200).json({
+    success: true,
+    message: `Join request ${action}d`,
+    result,
+  });
+});
+
+// ==================================================
+// GET PENDING JOIN REQUESTS (ADMIN)
+// ==================================================
+export const getPendingJoinRequests = asyncWrapper(async (req, res) => {
+  const { groupId } = req.params;
+
+  const requests = await groupService.getPendingJoinRequests({
+    adminId: req.user._id,
+    groupId,
+  });
+
+  res.status(200).json({
+    success: true,
+    requests,
+  });
+});
+
 export const getMyGroups = asyncWrapper(async (req, res) => {
   const userId = req.user.id;
 

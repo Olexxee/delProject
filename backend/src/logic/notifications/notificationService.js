@@ -51,14 +51,13 @@ class NotificationService {
       }
     }
 
-    // 2️⃣ Push notifications
     if (channels.includes("push") && recipient.deviceTokens?.length) {
       try {
         await pushChannel.send({
-          tokens: recipient.deviceTokens,
+          recipientToken: recipient.deviceTokens,
           title,
-          body: message,
-          payload,
+          message,
+          meta: payload,
         });
         activeChannels.push("push");
       } catch (err) {
@@ -66,7 +65,6 @@ class NotificationService {
       }
     }
 
-    // 3️⃣ Email notifications
     if (channels.includes("email") && recipient.email) {
       try {
         await emailChannel.send({

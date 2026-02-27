@@ -27,7 +27,7 @@ const MembershipSchema = new Schema(
       default: Date.now,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // To avoid duplicate memberships

@@ -60,6 +60,26 @@ export const getTournamentFixtures = async (tournamentId) => {
   return enrichedFixtures;
 };
 
+export const getActiveTournamentByGroup = async (groupId) => {
+  const tournaments = await tournamentDb.findTournamentsByGroup(
+    groupId,
+    "ongoing",
+  );
+
+  const tournament = tournaments[0];
+  if (!tournament) return null;
+
+  return {
+    id: tournament._id,
+    name: tournament.name,
+    status: tournament.status,
+    type: tournament.type,
+    currentMatchday: tournament.currentMatchday,
+    totalMatchdays: tournament.totalMatchdays,
+    startDate: tournament.startDate,
+  };
+};
+
 // -------------------------------
 // GET MATCHDAY FIXTURES
 // -------------------------------

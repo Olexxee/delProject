@@ -66,7 +66,7 @@ export const createGroup = async ({
   await membershipService.createMembership({
     userId: user._id,
     groupId: group._id,
-    role: "admin",
+    roleInGroup: "admin",
     status: "active",
   });
 
@@ -146,16 +146,19 @@ export const createGroup = async ({
 };
 
 export const getGroupOverview = async ({ groupId, userId }) => {
+  // 1️⃣ Validate ID
   if (!mongoose.Types.ObjectId.isValid(groupId)) {
     throw new BadRequestError("Invalid group id");
   }
 
+  // 2️⃣ Fetch group
   const group = await Group.findById(groupId).populate("avatar").lean();
 
   if (!group || !group.isActive) {
     throw new NotFoundException("Group not found");
   }
 
+  // 3️⃣ Membership check
   const membership = await membershipService.findMembership({
     userId,
     groupId,
@@ -165,41 +168,55 @@ export const getGroupOverview = async ({ groupId, userId }) => {
     throw new ForbiddenError("You are not a member of this group");
   }
 
-  const myRole = membership?.role || "member";
+  const myRole = membership?.roleInGroup || "member";
 
-  const membersPreview = await membershipCrud.getMemberPreview(groupId);
+  // 4️⃣ Fetch members preview (safe default)
+  const membersPreview = (await membershipCrud.getMemberPreview(groupId)) || [];
 
-  const activeTournament =
-    await tournamentService.getActiveTournamentByGroup(groupId);
-
-  const tournamentsPreview = await tournamentService.getTournamentPreview({
+  // 5️⃣ Active tournament (can be null)
+  const activeTournament = await tournamentService.getActiveTournamentByGroup(
     groupId,
-    limit: 3,
-    includeDraft: myRole === "admin",
-  });
+    "ongoing",
+  );
 
-  // 5️⃣ Pending join requests (admin only)
-  let pendingJoinRequestCount;
-  if (myRole === "admin") {
-    pendingJoinRequestCount =
-      await membershipService.countPendingRequests(groupId);
+  // 6️⃣ Tournament preview (only if active tournament exists)
+  let tournamentPreview = null;
+
+  if (activeTournament && activeTournament._id) {
+    try {
+      tournamentPreview = await tournamentService.getTournamentPreview(
+        activeTournament._id,
+        userId,
+      );
+    } catch (err) {
+      // Prevent crash if tournament preview fails
+      tournamentPreview = null;
+    }
   }
 
+  // 7️⃣ Admin-only pending count
+  let pendingJoinRequestCount = null;
+
+  if (myRole === "admin") {
+    pendingJoinRequestCount =
+      (await membershipService.countPendingRequests(groupId)) || 0;
+  }
+
+  // 8️⃣ Safe response
   return {
     id: group._id,
     name: group.name,
-    description: group.bio,
-    avatar: group.avatar?.url ?? null,
+    description: group.bio || null,
+    avatar: group.avatar?.url || null,
     privacy: group.privacy,
-    memberCount: group.totalMembers,
+    memberCount: group.totalMembers || 0,
     myRole,
     pendingJoinRequestCount,
-    activeTournament,
-    tournamentsPreview,
+    activeTournament: activeTournament || null,
+    tournamentPreview, // ✅ fixed (was undefined before)
     membersPreview,
   };
 };
-
 /* =====================================================
    UPDATE GROUP MEDIA
 ===================================================== */
@@ -244,7 +261,7 @@ export const joinGroupByInvite = async (joinCode, userId) => {
   return membershipService.createMembership({
     userId,
     groupId: group._id,
-    role: "member",
+    roleInGroup: "member",
     status: "active",
   });
 };
@@ -263,7 +280,7 @@ export const leaveGroup = async (userId, groupId) => {
     throw new NotFoundException("You are not a member");
   }
 
-  if (membership.role === "admin") {
+  if (membership.roleInGroup === "admin") {
     throw new ForbiddenError(
       "Admin cannot leave without transferring ownership",
     );
@@ -283,7 +300,7 @@ export const kickUserFromGroup = async ({ adminId, groupId, targetUserId }) => {
     groupId,
   });
 
-  if (!adminMembership || adminMembership.role !== "admin") {
+  if (!adminMembership || adminMembership.roleInGroup !== "admin") {
     throw new ForbiddenError("Only admins can remove users");
   }
 
@@ -319,13 +336,13 @@ export const changeMemberRole = async ({
     groupId,
   });
 
-  if (!adminMembership || adminMembership.role !== "admin") {
+  if (!adminMembership || adminMembership.roleInGroup !== "admin") {
     throw new ForbiddenError("Only admins can change roles");
   }
 
   const updated = await membershipService.updateMembership(
     { userId: targetUserId, groupId },
-    { role: newRole },
+    { roleInGroup: newRole },
   );
 
   if (!updated) {
@@ -345,7 +362,7 @@ export const generateInviteLink = async ({ adminId, groupId }) => {
     groupId,
   });
 
-  if (!adminMembership || adminMembership.role !== "admin") {
+  if (!adminMembership || adminMembership.roleInGroup !== "admin") {
     throw new ForbiddenError("Only admins can generate invite links");
   }
 

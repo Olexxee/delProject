@@ -15,6 +15,11 @@ export const findTournamentById = async (tournamentId) => {
 
 // Find tournaments by group
 export const findTournamentsByGroup = async (groupId, status = null) => {
+  if (groupId && typeof groupId === "object" && groupId.groupId) {
+    status = groupId.status || status;
+    groupId = groupId.groupId;
+  }
+
   const query = { groupId };
   if (status) query.status = status;
 

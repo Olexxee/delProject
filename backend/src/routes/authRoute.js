@@ -1,5 +1,5 @@
 import { Router } from "express";
-import {authMiddleware} from "../middlewares/authenticationMdw.js";
+import { authMiddleware } from "../middlewares/authenticationMdw.js";
 import {
   signUp,
   login,
@@ -10,7 +10,8 @@ import {
   forgotPassword,
   resetPassword,
   logout,
-  saveDeviceToken, removeDeviceToken
+  saveDeviceToken,
+  removeDeviceToken,
 } from "../auth/authController.js";
 
 const router = Router();

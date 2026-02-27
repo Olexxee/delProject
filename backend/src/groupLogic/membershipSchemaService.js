@@ -34,6 +34,10 @@ export const getMemberPreview = async (groupId) => {
   return members;
 };
 
+export const countMemberships = async (filters = {}) => {
+  return await Membership.countDocuments(filters);
+};
+
 // Count memberships for a user (for pagination or stats)
 export const countGroupsByUser = async ({ userId, status = "active" }) => {
   return Membership.countDocuments({ userId, status });
