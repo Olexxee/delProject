@@ -14,6 +14,7 @@
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",
     "bcrypt": "^5.1.1",
+    "bullmq": "^5.70.1",
     "cloudinary": "^2.9.0",
     "compression": "^1.8.0",
     "cookie-parser": "^1.4.7",

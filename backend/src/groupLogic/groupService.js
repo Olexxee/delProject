@@ -62,7 +62,6 @@ export const createGroup = async ({
     throw new BadRequestError("Failed to create group");
   }
 
-  // 4️⃣ Create membership
   await membershipService.createMembership({
     userId: user._id,
     groupId: group._id,
@@ -70,51 +69,40 @@ export const createGroup = async ({
     status: "active",
   });
 
-  // 5️⃣ Create or fetch chat room
   const chatRoom = await getOrCreateChatRoom({
     contextType: "group",
     contextId: group._id,
     userId: user._id,
   });
 
-  // 6️⃣ Attach chat room
   group.chatRoom = chatRoom._id;
   await group.save();
 
-  // 7️⃣ Populate relations
   group = await group.populate([{ path: "avatar" }, { path: "createdBy" }]);
 
-  // 8️⃣ Update user groups (WRITE PATH — must be clean)
-  user.groups = user.groups || [];
-  user.groups.push(group._id);
-  await user.save();
-
-  // 9️⃣ Notification
-  await NotificationService.send({
-    recipientId: user._id,
-    sender: "system",
-    type: NotificationTypes.GROUP_CREATED,
-    title: `Group "${group.name}" created 🎉`,
-    message: `You are now the admin of "${group.name}".`,
-    channels: ["inApp", "email"],
-    meta: {
-      email: user.email,
-      payload: getEmailTemplate("GROUP_CREATED", {
-        firstName: user.name,
-        groupName: group.name,
-        groupLink: `${configService.getBaseUrl()}/groups/${group._id}`,
-      }),
+  await notificationQueue.add(
+    "GROUP_CREATED",
+    {
+      userId: user._id.toString(),
+      groupId: group._id.toString(),
     },
-  });
+    {
+      attempts: 5,
+      backoff: {
+        type: "exponential",
+        delay: 3000,
+      },
+      removeOnComplete: true,
+      removeOnFail: false,
+    },
+  );
 
-  if (chatBroadcaster) {
-    chatBroadcaster.broadcastMessage(group._id, {
-      system: true,
-      content: `Group "${group.name}" created!`,
-      sender: "system",
-      createdAt: new Date(),
-    });
-  }
+  chatBroadcaster.broadcastMessage(group._id, {
+    system: true,
+    content: `Group "${group.name}" created!`,
+    sender: "system",
+    createdAt: new Date(),
+  });
 
   const validGroupIds = (user.groups || []).filter((id) =>
     mongoose.Types.ObjectId.isValid(id),
@@ -213,7 +201,7 @@ export const getGroupOverview = async ({ groupId, userId }) => {
     myRole,
     pendingJoinRequestCount,
     activeTournament: activeTournament || null,
-    tournamentPreview, // ✅ fixed (was undefined before)
+    tournamentPreview,
     membersPreview,
   };
 };
@@ -239,6 +227,29 @@ export const updateGroupMedia = async ({
 
   await group.save();
   return group;
+};
+
+export const requestToJoinGroup = async ({ groupId, userId }) => {
+  const group = await groupDb.findGroupById(groupId);
+  if (!group) throw new NotFoundException("Group not found");
+
+  const existing = await membershipService.findMembership({ userId, groupId });
+  if (existing) {
+    throw new ConflictException(
+      "You are already a member or have a pending request",
+    );
+  }
+
+  const isPublic = group.privacy === "public";
+
+  const membership = await membershipService.createMembership({
+    userId,
+    groupId: group._id,
+    roleInGroup: "member",
+    status: isPublic ? "active" : "pending",
+  });
+
+  return membership;
 };
 
 /* =====================================================

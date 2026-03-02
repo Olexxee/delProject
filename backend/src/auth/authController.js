@@ -22,10 +22,8 @@ const validator = new ValidatorClass();
 /* ================= AUTH ================= */
 
 export const signUp = asyncWrapper(async (req, res) => {
-  const { errors, value } = validator.validate(registerSchema, req.body);
-  if (errors) throw new ValidationException(errors);
-
-  const { token, user } = await authService.registerUser(value);
+  const validated = validator.validate(registerSchema, req.body);
+  const { token, user } = await authService.registerUser(validated);
 
   res.cookie("token", token, {
     httpOnly: true,
@@ -40,9 +38,8 @@ export const signUp = asyncWrapper(async (req, res) => {
 });
 
 export const login = asyncWrapper(async (req, res) => {
-  const value = validator.validate(loginSchema, req.body);
-
-  const { token, user } = await authService.authenticateUser(value);
+  const validated = validator.validate(loginSchema, req.body);
+  const { token, user } = await authService.authenticateUser(validated);
 
   res.cookie("token", token, {
     httpOnly: true,
@@ -145,7 +142,7 @@ export const resetPassword = asyncWrapper(async (req, res) => {
   const { error, value } = resetPasswordSchema.validate(req.body);
   if (error) throw new BadRequestError(error.details[0].message);
 
-  await authService.resetPassword(value.token, value.newPassword);
+  await authService.resetPassword(value.token, value.newPassword, value.email);
 
   return res.status(200).json({
     message: "Password has been reset successfully",
@@ -153,7 +150,7 @@ export const resetPassword = asyncWrapper(async (req, res) => {
 });
 
 export const saveDeviceToken = async (req, res) => {
-  const userId = req.user.id; // from JWT middleware
+  const userId = req.user.id;
   const { deviceToken } = req.body;
 
   if (!deviceToken)

@@ -9,7 +9,7 @@ import {
   startTournament,
   getTournamentTable,
 } from "../tournamentLogic/tournamentController.js";
-import {authMiddleware} from "../middlewares/authenticationMdw.js";
+import { authMiddleware } from "../middlewares/authenticationMdw.js";
 import { requireGroupAdmin } from "../admin/adminMiddleware.js";
 
 const tournamentRouter = Router();
@@ -23,7 +23,7 @@ tournamentRouter.post(
   "/group/:groupId/create",
   authMiddleware,
   requireGroupAdmin,
-  createTournament
+  createTournament,
 );
 
 // Get tournament details (includes fixture summary)
@@ -37,7 +37,7 @@ tournamentRouter.patch(
   "/:tournamentId",
   authMiddleware,
   requireGroupAdmin,
-  updateTournament
+  updateTournament,
 );
 
 // Cancel tournament (group admin only)
@@ -45,7 +45,7 @@ tournamentRouter.delete(
   "/:tournamentId",
   authMiddleware,
   requireGroupAdmin,
-  cancelTournament
+  cancelTournament,
 );
 
 // --------------------
@@ -56,7 +56,7 @@ tournamentRouter.delete(
 tournamentRouter.get(
   "/:tournamentId/readiness",
   authMiddleware,
-  checkTournamentReadiness
+  checkTournamentReadiness,
 );
 
 // Start tournament (group admin only)
@@ -64,14 +64,14 @@ tournamentRouter.post(
   "/:tournamentId/start",
   authMiddleware,
   requireGroupAdmin,
-  startTournament
+  startTournament,
 );
 
 // Get league table / tournament stats
 tournamentRouter.get(
   "/:tournamentId/table",
   authMiddleware,
-  getTournamentTable
+  getTournamentTable,
 );
 
 export default tournamentRouter;

@@ -2,12 +2,14 @@ import * as fixtureDb from "../models/fixtureSchemaService.js";
 import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as userService from "../user/userService.js";
 import Group from "../groupLogic/groupSchema.js";
+import { updateGroupMetrics } from "../groupLogic/groupMetric.js";
 import * as userStatsService from "../user/statschemaService.js";
 import {
   NotFoundException,
   BadRequestError,
 } from "../lib/classes/errorClasses.js";
 
+// ─── TOURNAMENT CREATION ───────────────────────────────────────────────────────
 export const createTournament = async (data) => {
   const tournament = await tournamentDb.createTournament(data);
 
@@ -16,22 +18,44 @@ export const createTournament = async (data) => {
     $set: { lastTournamentAt: new Date() },
   });
 
+  await updateGroupMetrics(data.groupId);
+
   return tournament;
 };
 
-// -------------------------------
-// GET ALL TOURNAMENT FIXTURES (ENRICHED)
-// -------------------------------
+// ─── GET ACTIVE TOURNAMENT FOR A GROUP ─────────────────────────────────────────
+export const getActiveTournamentByGroup = async (groupId) => {
+  const tournaments = await tournamentDb.findTournamentsByGroup(
+    groupId,
+    "ongoing",
+  );
+  const tournament = tournaments[0];
+  if (!tournament) return null;
+
+  return {
+    id: tournament._id,
+    name: tournament.name,
+    status: tournament.status,
+    type: tournament.type,
+    currentMatchday: tournament.currentMatchday,
+    totalMatchdays: tournament.totalMatchdays,
+    startDate: tournament.startDate,
+  };
+};
+
+// ─── GET ALL FIXTURES FOR A TOURNAMENT (ENRICHED) ─────────────────────────────
 export const getTournamentFixtures = async (tournamentId) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) throw new NotFoundException("Tournament not found");
 
   const fixtures = await fixtureDb.getTournamentFixtures(tournamentId);
 
-  const enrichedFixtures = await Promise.all(
+  return Promise.all(
     fixtures.map(async (f) => {
-      const homeTeam = await userService.getUserById(f.homeTeam._id);
-      const awayTeam = await userService.getUserById(f.awayTeam._id);
+      const [homeTeam, awayTeam] = await Promise.all([
+        userService.getUserById(f.homeTeam._id),
+        userService.getUserById(f.awayTeam._id),
+      ]);
 
       return {
         id: f._id,
@@ -56,43 +80,21 @@ export const getTournamentFixtures = async (tournamentId) => {
       };
     }),
   );
-
-  return enrichedFixtures;
 };
 
-export const getActiveTournamentByGroup = async (groupId) => {
-  const tournaments = await tournamentDb.findTournamentsByGroup(
-    groupId,
-    "ongoing",
-  );
-
-  const tournament = tournaments[0];
-  if (!tournament) return null;
-
-  return {
-    id: tournament._id,
-    name: tournament.name,
-    status: tournament.status,
-    type: tournament.type,
-    currentMatchday: tournament.currentMatchday,
-    totalMatchdays: tournament.totalMatchdays,
-    startDate: tournament.startDate,
-  };
-};
-
-// -------------------------------
-// GET MATCHDAY FIXTURES
-// -------------------------------
+// ─── GET FIXTURES FOR A SPECIFIC MATCHDAY ─────────────────────────────────────
 export const getMatchdayFixtures = async ({ tournamentId, matchday }) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) throw new NotFoundException("Tournament not found");
 
   const fixtures = await fixtureDb.getMatchdayFixtures(tournamentId, matchday);
 
-  const enriched = await Promise.all(
+  return Promise.all(
     fixtures.map(async (f) => {
-      const homeTeam = await userService.getUserById(f.homeTeam._id);
-      const awayTeam = await userService.getUserById(f.awayTeam._id);
+      const [homeTeam, awayTeam] = await Promise.all([
+        userService.getUserById(f.homeTeam._id),
+        userService.getUserById(f.awayTeam._id),
+      ]);
 
       return {
         id: f._id,
@@ -115,20 +117,18 @@ export const getMatchdayFixtures = async ({ tournamentId, matchday }) => {
       };
     }),
   );
-
-  return enriched;
 };
 
-// -------------------------------
-// GET TEAM FIXTURES
-// -------------------------------
+// ─── GET TEAM SPECIFIC FIXTURES ───────────────────────────────────────────────
 export const getTeamFixtures = async ({ tournamentId, teamId }) => {
   const fixtures = await fixtureDb.getTeamFixtures(tournamentId, teamId);
 
-  const enriched = await Promise.all(
+  return Promise.all(
     fixtures.map(async (f) => {
-      const homeTeam = await userService.getUserById(f.homeTeam._id);
-      const awayTeam = await userService.getUserById(f.awayTeam._id);
+      const [homeTeam, awayTeam] = await Promise.all([
+        userService.getUserById(f.homeTeam._id),
+        userService.getUserById(f.awayTeam._id),
+      ]);
 
       const isHome = f.homeTeam._id.toString() === teamId.toString();
       const opponent = isHome ? awayTeam : homeTeam;
@@ -150,15 +150,10 @@ export const getTeamFixtures = async ({ tournamentId, teamId }) => {
       };
     }),
   );
-
-  return enriched;
 };
 
-// -------------------------------
-// GET UPCOMING FIXTURES FOR USER
-// -------------------------------
+// ─── GET UPCOMING FIXTURES FOR USER ──────────────────────────────────────────
 export const getUpcomingFixturesForUser = async (userId) => {
-  // Get tournaments user is registered in
   const tournaments = await tournamentDb.findUserTournaments(userId);
 
   const upcomingFixtures = [];
@@ -168,8 +163,10 @@ export const getUpcomingFixturesForUser = async (userId) => {
 
     const enriched = await Promise.all(
       fixtures.map(async (f) => {
-        const homeTeam = await userService.getUserById(f.homeTeam._id);
-        const awayTeam = await userService.getUserById(f.awayTeam._id);
+        const [homeTeam, awayTeam] = await Promise.all([
+          userService.getUserById(f.homeTeam._id),
+          userService.getUserById(f.awayTeam._id),
+        ]);
         const isHome = f.homeTeam._id.toString() === userId.toString();
         const opponent = isHome ? awayTeam : homeTeam;
 
@@ -204,36 +201,37 @@ export const getUpcomingFixturesForUser = async (userId) => {
   return upcomingFixtures;
 };
 
+// ─── TOURNAMENT PREVIEW FOR USER ─────────────────────────────────────────────
 export const getTournamentPreview = async (tournamentId, userId) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) throw new NotFoundException("Tournament not found");
+
   const participant = tournament.participants.find(
     (p) => p.userId.toString() === userId.toString(),
   );
   const myRole = participant ? participant.status : null;
+
   const myStats = await userStatsService.getUserTournamentStats(
     tournamentId,
     userId,
   );
-
   const upcomingFixtures = await fixtureDb.getUpcomingFixtures(tournamentId);
 
-  const nextMatch = upcomingFixtures.length > 0 ? upcomingFixtures[0] : null;
+  const nextMatchRaw = upcomingFixtures[0] ?? null;
+  let nextMatch = null;
 
-  let enrichedNextMatch = null;
-  if (nextMatch) {
+  if (nextMatchRaw) {
     const opponentId =
-      nextMatch.homeTeam.toString() === userId.toString()
-        ? nextMatch.awayTeam
-        : nextMatch.homeTeam;
-
+      nextMatchRaw.homeTeam.toString() === userId.toString()
+        ? nextMatchRaw.awayTeam
+        : nextMatchRaw.homeTeam;
     const opponent = await userService.getUserById(opponentId);
 
-    enrichedNextMatch = {
-      id: nextMatch._id,
-      matchday: nextMatch.matchday,
-      scheduledDate: nextMatch.scheduledDate,
-      isHome: nextMatch.homeTeam.toString() === userId.toString(),
+    nextMatch = {
+      id: nextMatchRaw._id,
+      matchday: nextMatchRaw.matchday,
+      scheduledDate: nextMatchRaw.scheduledDate,
+      isHome: nextMatchRaw.homeTeam.toString() === userId.toString(),
       opponent: {
         id: opponent._id,
         username: opponent.username,
@@ -258,35 +256,35 @@ export const getTournamentPreview = async (tournamentId, userId) => {
       isRegistered: !!myRole,
       stats: myStats || { wins: 0, draws: 0, losses: 0, points: 0 },
     },
-    nextMatch: enrichedNextMatch,
-    // You could also add a 'recentForm' array or 'topScorer' snippet here
+    nextMatch,
   };
 };
 
+// ─── UPDATE TOURNAMENT STATUS ────────────────────────────────────────────────
 export const updateTournamentStatus = async ({ tournamentId, newStatus }) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) throw new NotFoundException("Tournament not found");
 
   const oldStatus = tournament.status;
-
   tournament.status = newStatus;
   await tournament.save();
 
   const groupId = tournament.groupId;
 
+  // Update group counters
   if (oldStatus !== "ongoing" && newStatus === "ongoing") {
     await Group.findByIdAndUpdate(groupId, {
       $inc: { activeTournamentsCount: 1 },
       $set: { lastTournamentAt: new Date() },
     });
   }
-
-  // Decrement active tournaments
   if (oldStatus === "ongoing" && newStatus === "completed") {
     await Group.findByIdAndUpdate(groupId, {
       $inc: { activeTournamentsCount: -1 },
     });
   }
+
+  await updateGroupMetrics(groupId);
 
   return tournament;
 };

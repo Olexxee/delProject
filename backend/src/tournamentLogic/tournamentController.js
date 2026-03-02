@@ -1,25 +1,23 @@
 import * as tournamentService from "./tournamentService.js";
 import * as fixtureService from "./fixtureService.js";
 import { ValidatorClass } from "../lib/classes/validatorClass.js";
-import { 
-  createTournamentSchema, 
-  updateTournamentSchema 
+import {
+  createTournamentSchema,
+  updateTournamentSchema,
 } from "./tournamentRequestSchema.js";
-import { 
+import {
   ValidationException,
-  NotFoundException
+  NotFoundException,
 } from "../lib/classes/errorClasses.js";
 import { asyncWrapper } from "../lib/utils.js";
 
 const validator = new ValidatorClass();
 
 // ================================
-// TOURNAMENT CREATION
+// CREATE TOURNAMENT
 // ================================
 export const createTournament = asyncWrapper(async (req, res) => {
-  const { errors, value } = validator.validate(createTournamentSchema, req.body);
-  if (errors) throw new ValidationException(errors);
-
+  const { value } = validator.validate(createTournamentSchema, req.body);
   const userId = req.user._id;
   const { groupId } = req.params;
 
@@ -37,23 +35,22 @@ export const createTournament = asyncWrapper(async (req, res) => {
 });
 
 // ================================
-// GET TOURNAMENT DETAILS
+// GET TOURNAMENT DETAILS (WITH USER CONTEXT + NEXT MATCH)
 // ================================
 export const getTournament = asyncWrapper(async (req, res) => {
   const { tournamentId } = req.params;
-  const tournament = await tournamentService.getTournamentById(tournamentId);
+  const userId = req.user._id;
 
-  // Optionally include fixture summary
-  const fixturesSummary = await fixtureService.getTournamentFixtures(tournamentId);
+  const tournamentPreview = await tournamentService.getTournamentPreview(
+    tournamentId,
+    userId,
+  );
 
   res.status(200).json({
     success: true,
-    tournament: {
-      ...tournament.toObject(),
-      fixtureSummary: fixturesSummary.fixturesCount
-        ? fixturesSummary
-        : null,
-    },
+    tournament: tournamentPreview.tournament,
+    userContext: tournamentPreview.userContext,
+    nextMatch: tournamentPreview.nextMatch,
   });
 });
 
@@ -64,7 +61,10 @@ export const getGroupTournaments = asyncWrapper(async (req, res) => {
   const { groupId } = req.params;
   const { status } = req.query;
 
-  const tournaments = await tournamentService.getGroupTournaments(groupId, status);
+  const tournaments = await tournamentService.getGroupTournaments(
+    groupId,
+    status,
+  );
 
   res.status(200).json({
     success: true,
@@ -79,7 +79,10 @@ export const updateTournament = asyncWrapper(async (req, res) => {
   const { tournamentId } = req.params;
   const userId = req.user._id;
 
-  const { errors, value } = validator.validate(updateTournamentSchema, req.body);
+  const { errors, value } = validator.validate(
+    updateTournamentSchema,
+    req.body,
+  );
   if (errors) throw new ValidationException(errors);
 
   const updatedTournament = await tournamentService.updateTournament({
@@ -96,7 +99,7 @@ export const updateTournament = asyncWrapper(async (req, res) => {
 });
 
 // ================================
-// CANCEL/DELETE TOURNAMENT
+// CANCEL TOURNAMENT
 // ================================
 export const cancelTournament = asyncWrapper(async (req, res) => {
   const { tournamentId } = req.params;
@@ -111,12 +114,13 @@ export const cancelTournament = asyncWrapper(async (req, res) => {
 });
 
 // ================================
-// TOURNAMENT READINESS CHECK
+// CHECK TOURNAMENT READINESS
 // ================================
 export const checkTournamentReadiness = asyncWrapper(async (req, res) => {
   const { tournamentId } = req.params;
 
-  const readiness = await tournamentService.checkTournamentReadiness(tournamentId);
+  const readiness =
+    await tournamentService.checkTournamentReadiness(tournamentId);
 
   res.status(200).json({
     success: true,
@@ -137,6 +141,8 @@ export const startTournament = asyncWrapper(async (req, res) => {
     success: true,
     message: result.message,
     status: result.status,
+    tournament: result.tournament || null, // optional: updated tournament object
+    nextMatch: result.nextMatch || null, // optional: next match for UI
   });
 });
 
@@ -146,7 +152,8 @@ export const startTournament = asyncWrapper(async (req, res) => {
 export const getTournamentTable = asyncWrapper(async (req, res) => {
   const { tournamentId } = req.params;
 
-  const tournamentData = await tournamentService.getTournamentWithTable(tournamentId);
+  const tournamentData =
+    await tournamentService.getTournamentWithTable(tournamentId);
 
   res.status(200).json({
     success: true,

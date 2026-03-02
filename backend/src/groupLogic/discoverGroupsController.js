@@ -16,7 +16,11 @@ export const getDiscoverGroups = asyncWrapper(async (req, res) => {
     throw new BadRequestError("Page and limit must be positive numbers");
   }
 
-  const groups = await discoverGroups({ page, limit });
+  const groups = await discoverGroups({
+    currentUserId: req.user._id,
+    page,
+    limit,
+  });
 
   res.status(200).json({
     success: true,

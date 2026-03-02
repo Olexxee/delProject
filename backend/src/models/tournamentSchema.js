@@ -3,10 +3,7 @@ import { nanoid } from "nanoid";
 
 const tournamentSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: true,
-    },
+    name: { type: String, required: true },
     groupId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Group",
@@ -17,28 +14,18 @@ const tournamentSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    // === NEW FIELDS FOR LEAGUE TOURNAMENTS ===
+
     type: {
       type: String,
       enum: ["league", "cup", "hybrid"],
       default: "league",
     },
-    description: {
-      type: String,
-      default: "",
-    },
-    tournamentCode: {
-      type: String,
-    },
-    maxParticipants: {
-      type: Number,
-      default: 20,
-      min: 4,
-    },
-    currentParticipants: {
-      type: Number,
-      default: 0,
-    },
+    description: { type: String, default: "" },
+
+    tournamentCode: { type: String, unique: true },
+    maxParticipants: { type: Number, default: 20, min: 4 },
+
+    // Only store registration info
     participants: [
       {
         userId: {
@@ -46,10 +33,7 @@ const tournamentSchema = new mongoose.Schema(
           ref: "User",
           required: true,
         },
-        registeredAt: {
-          type: Date,
-          default: Date.now,
-        },
+        registeredAt: { type: Date, default: Date.now },
         status: {
           type: String,
           enum: ["registered", "confirmed", "withdrawn"],
@@ -57,61 +41,47 @@ const tournamentSchema = new mongoose.Schema(
         },
       },
     ],
+
+    // Settings
     settings: {
-      pointsForWin: {
-        type: Number,
-        default: 3,
-      },
-      pointsForDraw: {
-        type: Number,
-        default: 1,
-      },
-      pointsForLoss: {
-        type: Number,
-        default: 0,
-      },
-      rounds: {
-        type: String,
-        enum: ["single", "double"],
-        default: "single",
-      },
+      pointsForWin: { type: Number, default: 3 },
+      pointsForDraw: { type: Number, default: 1 },
+      pointsForLoss: { type: Number, default: 0 },
+      rounds: { type: String, enum: ["single", "double"], default: "single" },
     },
-    registrationDeadline: {
-      type: Date,
-      required: true,
-    },
-    isRegistrationOpen: {
-      type: Boolean,
-      default: true,
-    },
-    currentMatchday: {
-      type: Number,
-      default: 0,
-    },
-    totalMatchdays: {
-      type: Number,
-      default: 0,
-    },
+
+    registrationDeadline: { type: Date, required: true },
+    isRegistrationOpen: { type: Boolean, default: true },
+
+    // Lifecycle tracking
     startDate: Date,
     endDate: Date,
+    totalMatches: { type: Number, default: 0 },
+    completedMatches: { type: Number, default: 0 },
+    currentMatchday: { type: Number, default: 0 },
+    totalMatchdays: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ["upcoming", "registration", "ongoing", "completed", "cancelled"],
       default: "registration",
     },
+
+    // Precomputed metrics for Discover
+    activeTournamentsCount: { type: Number, default: 0 },
+    totalParticipantsCount: { type: Number, default: 0 },
+    avgPoints: { type: Number, default: 0 },
+    communityScore: { type: Number, default: 0 },
   },
   { timestamps: true },
 );
 
-// Index for efficient queries
+// Indexes
 tournamentSchema.index({ groupId: 1, status: 1 });
 tournamentSchema.index({ tournamentCode: 1 }, { unique: true });
 
-// Generate unique tournament code
+// Auto-generate code
 tournamentSchema.pre("save", function (next) {
-  if (!this.tournamentCode) {
-    this.tournamentCode = `T-${nanoid(8)}`;
-  }
+  if (!this.tournamentCode) this.tournamentCode = `T-${nanoid(8)}`;
   next();
 });
 

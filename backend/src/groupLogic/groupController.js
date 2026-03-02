@@ -207,6 +207,8 @@ export const generateInviteLink = asyncWrapper(async (req, res) => {
 export const requestToJoinGroup = asyncWrapper(async (req, res) => {
   const { groupId } = req.params;
 
+  console.log(`User ${req.user._id} is requesting to join group ${groupId}`);
+
   const result = await groupService.requestToJoinGroup({
     userId: req.user._id,
     groupId,
