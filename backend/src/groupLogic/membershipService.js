@@ -108,6 +108,12 @@ export const removeMembership = async (payload) => {
 
 // Ensure user is admin in group
 export const assertIsAdmin = async (payload) => {
+  console.log(
+    "Checking admin for userId:",
+    payload.userId,
+    "groupId:",
+    payload.groupId,
+  );
   const { userId, groupId } = payload;
   const membership = await membershipService.findMembership({
     userId,

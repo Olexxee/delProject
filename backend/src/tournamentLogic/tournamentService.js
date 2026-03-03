@@ -12,35 +12,17 @@ import {
 // ─── TOURNAMENT CREATION ───────────────────────────────────────────────────────
 export const createTournament = async (data) => {
   const tournament = await tournamentDb.createTournament(data);
-
   await Group.findByIdAndUpdate(data.groupId, {
     $inc: { tournamentsCount: 1 },
     $set: { lastTournamentAt: new Date() },
   });
-
   await updateGroupMetrics(data.groupId);
-
   return tournament;
 };
 
 // ─── GET ACTIVE TOURNAMENT FOR A GROUP ─────────────────────────────────────────
-export const getActiveTournamentByGroup = async (groupId) => {
-  const tournaments = await tournamentDb.findTournamentsByGroup(
-    groupId,
-    "ongoing",
-  );
-  const tournament = tournaments[0];
-  if (!tournament) return null;
-
-  return {
-    id: tournament._id,
-    name: tournament.name,
-    status: tournament.status,
-    type: tournament.type,
-    currentMatchday: tournament.currentMatchday,
-    totalMatchdays: tournament.totalMatchdays,
-    startDate: tournament.startDate,
-  };
+export const getGroupTournaments = async (groupId, status = undefined) => {
+  return tournamentDb.findTournamentsByGroup(groupId, status);
 };
 
 // ─── GET ALL FIXTURES FOR A TOURNAMENT (ENRICHED) ─────────────────────────────

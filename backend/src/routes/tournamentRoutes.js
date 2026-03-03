@@ -9,6 +9,11 @@ import {
   startTournament,
   getTournamentTable,
 } from "../tournamentLogic/tournamentController.js";
+import {
+  createTournamentSchema,
+  updateTournamentSchema,
+} from "../tournamentLogic/tournamentRequestSchema.js";
+import { validateBody } from "../middlewares/validatorMiddleware.js";
 import { authMiddleware } from "../middlewares/authenticationMdw.js";
 import { requireGroupAdmin } from "../admin/adminMiddleware.js";
 
@@ -23,14 +28,15 @@ tournamentRouter.post(
   "/group/:groupId/create",
   authMiddleware,
   requireGroupAdmin,
+  validateBody(createTournamentSchema),
   createTournament,
 );
 
 // Get tournament details (includes fixture summary)
-tournamentRouter.get("/:tournamentId", authMiddleware, getTournament);
+tournamentRouter.get("/:tournamentId", getTournament);
 
 // Get all tournaments for a group
-tournamentRouter.get("/group/:groupId", authMiddleware, getGroupTournaments);
+tournamentRouter.get("/group/:groupId", getGroupTournaments);
 
 // Update tournament (group admin only)
 tournamentRouter.patch(

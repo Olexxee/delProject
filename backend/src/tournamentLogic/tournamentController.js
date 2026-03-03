@@ -1,6 +1,6 @@
 import * as tournamentService from "./tournamentService.js";
 import * as fixtureService from "./fixtureService.js";
-import { ValidatorClass } from "../lib/classes/validatorClass.js";
+import { validateBody } from "../middlewares/validatorMiddleware.js";
 import {
   createTournamentSchema,
   updateTournamentSchema,
@@ -11,19 +11,15 @@ import {
 } from "../lib/classes/errorClasses.js";
 import { asyncWrapper } from "../lib/utils.js";
 
-const validator = new ValidatorClass();
-
 // ================================
 // CREATE TOURNAMENT
 // ================================
 export const createTournament = asyncWrapper(async (req, res) => {
-  const { value } = validator.validate(createTournamentSchema, req.body);
   const userId = req.user._id;
   const { groupId } = req.params;
-
   const tournament = await tournamentService.createTournament({
-    ...value,
-    userId,
+    ...req.body,
+    createdBy: userId,
     groupId,
   });
 
@@ -79,10 +75,7 @@ export const updateTournament = asyncWrapper(async (req, res) => {
   const { tournamentId } = req.params;
   const userId = req.user._id;
 
-  const { errors, value } = validator.validate(
-    updateTournamentSchema,
-    req.body,
-  );
+  const { errors, value } = validateBody(updateTournamentSchema, req.body);
   if (errors) throw new ValidationException(errors);
 
   const updatedTournament = await tournamentService.updateTournament({

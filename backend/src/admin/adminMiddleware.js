@@ -22,6 +22,7 @@ export const requirePlatformGroupAdmin = (req, res, next) => {
 export const requireGroupAdmin = asyncWrapper(async (req, res, next) => {
   const groupId = req.params.groupId;
   const userId = req.user._id;
+  console.log("Checking group admin for userId:", userId, "groupId:", groupId);
   await membershipService.assertIsAdmin({ userId, groupId });
   next();
 });

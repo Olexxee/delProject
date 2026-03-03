@@ -1,9 +1,18 @@
 import Group from "../groupLogic/groupSchema.js";
+import mongoose from "mongoose";
 
-export const discoverGroups = async (currentUserId, page = 1, limit = 20) => {
+export const discoverGroups = async ({
+  currentUserId,
+  page = 1,
+  limit = 20,
+}) => {
+  if (!mongoose.Types.ObjectId.isValid(currentUserId)) {
+    throw new Error("Invalid currentUserId");
+  }
+
   const skip = (page - 1) * limit;
 
-  const groups = await Group.find({
+  return Group.find({
     privacy: "public",
     isActive: true,
     createdBy: { $ne: currentUserId },
@@ -12,6 +21,4 @@ export const discoverGroups = async (currentUserId, page = 1, limit = 20) => {
     .skip(skip)
     .limit(limit)
     .lean();
-
-  return groups;
 };

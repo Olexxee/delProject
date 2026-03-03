@@ -162,7 +162,7 @@ export const getGroupOverview = async ({ groupId, userId }) => {
   const membersPreview = (await membershipCrud.getMemberPreview(groupId)) || [];
 
   // 5️⃣ Active tournament (can be null)
-  const activeTournament = await tournamentService.getActiveTournamentByGroup(
+  const activeTournament = await tournamentService.getGroupTournaments(
     groupId,
     "ongoing",
   );

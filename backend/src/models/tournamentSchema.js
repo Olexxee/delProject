@@ -22,7 +22,7 @@ const tournamentSchema = new mongoose.Schema(
     },
     description: { type: String, default: "" },
 
-    tournamentCode: { type: String, unique: true },
+    tournamentCode: { type: String },
     maxParticipants: { type: Number, default: 20, min: 4 },
 
     // Only store registration info
