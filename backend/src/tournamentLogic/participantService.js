@@ -11,9 +11,9 @@ import {
 } from "../lib/classes/errorClasses.js";
 import moment from "moment";
 
-// -------------------------------
+// ================================
 // REGISTER PARTICIPANT
-// -------------------------------
+// ================================
 export const registerParticipant = async ({ tournamentId, userId }) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -46,14 +46,12 @@ export const registerParticipant = async ({ tournamentId, userId }) => {
       await tournamentDb.checkTournamentCapacity(tournamentId);
     if (capacityCheck.isFull) throw new BadRequestError("Tournament is full");
 
-    // Register participant
     const updatedTournament = await tournamentDb.addParticipant(
       tournamentId,
       userId,
       { session },
     );
 
-    // Create tournament-specific stats
     await userStatsService.createUserStats({
       user: userId,
       group: tournament.groupId._id || tournament.groupId,
@@ -61,7 +59,6 @@ export const registerParticipant = async ({ tournamentId, userId }) => {
       session,
     });
 
-    // Update group metrics
     await updateGroupMetrics(
       tournament.groupId._id || tournament.groupId,
       session,
@@ -81,9 +78,9 @@ export const registerParticipant = async ({ tournamentId, userId }) => {
   }
 };
 
-// -------------------------------
+// ================================
 // WITHDRAW PARTICIPANT
-// -------------------------------
+// ================================
 export const withdrawParticipant = async ({ tournamentId, userId, reason }) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -96,14 +93,14 @@ export const withdrawParticipant = async ({ tournamentId, userId, reason }) => {
       tournamentId,
       userId,
     );
-    if (!registration)
+    if (!registration) {
       throw new NotFoundException("You are not registered for this tournament");
-
-    if (tournament.status === "ongoing") {
-      throw new BadRequestError("Cannot withdraw from ongoing tournament");
     }
 
-    // Update participant status
+    if (tournament.status === "ongoing") {
+      throw new BadRequestError("Cannot withdraw from an ongoing tournament");
+    }
+
     await tournamentDb.updateParticipantStatus(
       tournamentId,
       userId,
@@ -111,21 +108,18 @@ export const withdrawParticipant = async ({ tournamentId, userId, reason }) => {
       { session },
     );
 
-    // Decrement participant count
     await tournamentDb.updateTournament(
       tournamentId,
       { $inc: { currentParticipants: -1 } },
       { session },
     );
 
-    // Remove tournament-specific stats
     await userStatsService.deleteUserStats(
       userId,
       tournament.groupId._id || tournament.groupId,
       { session },
     );
 
-    // Update group metrics
     await updateGroupMetrics(
       tournament.groupId._id || tournament.groupId,
       session,
@@ -137,55 +131,6 @@ export const withdrawParticipant = async ({ tournamentId, userId, reason }) => {
     return {
       message: "Successfully withdrawn from tournament",
       reason,
-    };
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    throw error;
-  }
-};
-
-// -------------------------------
-// START TOURNAMENT
-// -------------------------------
-export const startTournament = async ({ tournamentId, userId }) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const tournament = await tournamentDb.findTournamentById(tournamentId);
-    if (!tournament) throw new NotFoundException("Tournament not found");
-
-    await membershipService.assertIsAdmin({
-      userId,
-      groupId: tournament.groupId._id || tournament.groupId,
-    });
-
-    const fixturesExist = await tournamentDb.fixturesExist(tournamentId);
-    if (!fixturesExist) throw new BadRequestError("Generate fixtures first");
-
-    await tournamentDb.updateTournament(
-      tournamentId,
-      {
-        status: "ongoing",
-        startDate: new Date(),
-        currentMatchday: 1,
-      },
-      { session },
-    );
-
-    // Update group metrics
-    await updateGroupMetrics(
-      tournament.groupId._id || tournament.groupId,
-      session,
-    );
-
-    await session.commitTransaction();
-    session.endSession();
-
-    return {
-      message: "Tournament started successfully",
-      status: "ongoing",
     };
   } catch (error) {
     await session.abortTransaction();

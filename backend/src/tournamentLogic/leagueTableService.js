@@ -1,17 +1,15 @@
-import mongoose from "mongoose";
 import * as fixtureDb from "../models/fixtureSchemaService.js";
 import * as tournamentDb from "../models/tournamentSchemaService.js";
-import * as userStatsService from "../user/statschemaService.js";
-import { updateGroupMetrics } from "../groupLogic/groupMetricsService.js";
+import { updateGroupMetrics } from "../groupLogic/groupMetric.js";
+import cache from "../lib/cache.js";
 import { NotFoundException } from "../lib/classes/errorClasses.js";
 
-// -----------------------------
-// HELPER: Build Table From Fixtures
-// -----------------------------
+// ================================
+// HELPER: BUILD TABLE FROM FIXTURES
+// ================================
 const buildTable = (participants, fixtures, tournamentSettings) => {
   const tableData = {};
 
-  // Initialize table
   participants.forEach((id) => {
     tableData[id.toString()] = {
       userId: id,
@@ -28,7 +26,6 @@ const buildTable = (participants, fixtures, tournamentSettings) => {
     };
   });
 
-  // Process completed fixtures
   fixtures.forEach((f) => {
     const homeId = f.homeTeam._id.toString();
     const awayId = f.awayTeam._id.toString();
@@ -48,7 +45,6 @@ const buildTable = (participants, fixtures, tournamentSettings) => {
     tableData[awayId].goalDifference =
       tableData[awayId].goalsFor - tableData[awayId].goalsAgainst;
 
-    // Determine result
     let homeResult, awayResult;
     if (homeGoals > awayGoals) {
       tableData[homeId].wins++;
@@ -73,32 +69,34 @@ const buildTable = (participants, fixtures, tournamentSettings) => {
       awayResult = "D";
     }
 
-    // Update last 5 results
     tableData[homeId].form.push(homeResult);
     tableData[awayId].form.push(awayResult);
     tableData[homeId].form = tableData[homeId].form.slice(-5);
     tableData[awayId].form = tableData[awayId].form.slice(-5);
   });
 
-  // Convert to array and sort
   const tableArray = Object.values(tableData).sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.goalDifference !== a.goalDifference)
       return b.goalDifference - a.goalDifference;
     if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
-    return 0; // Head-to-head logic can be added later
+    return 0; // head-to-head can be added later
   });
 
-  // Assign positions
   tableArray.forEach((team, idx) => (team.position = idx + 1));
 
   return tableArray;
 };
 
-// -----------------------------
+// ================================
 // GENERATE CURRENT LEAGUE TABLE
-// -----------------------------
+// ================================
 export const generateLeagueTable = async (tournamentId) => {
+  const cacheKey = `tournament:${tournamentId}:table`;
+
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached;
+
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) throw new NotFoundException("Tournament not found");
 
@@ -110,30 +108,24 @@ export const generateLeagueTable = async (tournamentId) => {
     await fixtureDb.getTournamentFixtures(tournamentId)
   ).filter((f) => f.isCompleted);
 
-  // Fetch user details in one query
   const User = (await import("../user/userSchema.js")).default;
   const users = await User.find({ _id: { $in: participants } }).select(
     "username email profilePicture",
   );
   const userMap = Object.fromEntries(users.map((u) => [u._id.toString(), u]));
 
-  // Build table
   const table = buildTable(
     participants,
     completedFixtures,
     tournament.settings,
   );
 
-  // Attach user details
   const populatedTable = table.map((team) => ({
     ...team,
     user: userMap[team.userId.toString()] || null,
   }));
 
-  // Update group metrics automatically after table recalculation
-  await updateGroupMetrics(tournament.groupId._id || tournament.groupId);
-
-  return {
+  const result = {
     tournament: {
       id: tournament._id,
       name: tournament.name,
@@ -144,11 +136,17 @@ export const generateLeagueTable = async (tournamentId) => {
     table: populatedTable,
     lastUpdated: new Date(),
   };
+
+  // Update group metrics before caching
+  await updateGroupMetrics(tournament.groupId._id || tournament.groupId);
+
+  await cache.set(cacheKey, result, 120); // 2 minutes TTL
+  return result;
 };
 
-// -----------------------------
+// ================================
 // GENERATE HISTORICAL TABLE
-// -----------------------------
+// ================================
 export const getHistoricalTable = async (tournamentId, upToMatchday) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) throw new NotFoundException("Tournament not found");

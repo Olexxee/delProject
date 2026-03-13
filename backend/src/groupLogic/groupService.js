@@ -3,9 +3,7 @@ import * as membershipService from "./membershipService.js";
 import * as membershipCrud from "./membershipSchemaService.js";
 import * as userService from "../user/userService.js";
 import { serializeGroup } from "../lib/serializeUser.js";
-import NotificationService from "../logic/notifications/notificationService.js";
-import { NotificationTypes } from "../logic/notifications/notificationTypes.js";
-import { getEmailTemplate } from "../logic/notifications/emailTemplates.js";
+import { notificationQueue } from "../queues/notificationQueue.js";
 import configService from "../lib/classes/configClass.js";
 import Group from "./groupSchema.js";
 import mongoose from "mongoose";
@@ -97,12 +95,14 @@ export const createGroup = async ({
     },
   );
 
-  chatBroadcaster.broadcastMessage(group._id, {
-    system: true,
-    content: `Group "${group.name}" created!`,
-    sender: "system",
-    createdAt: new Date(),
-  });
+  if (chatBroadcaster?.broadcastMessage) {
+    chatBroadcaster.broadcastMessage(group._id, {
+      system: true,
+      content: `Group "${group.name}" created!`,
+      sender: "system",
+      createdAt: new Date(),
+    });
+  }
 
   const validGroupIds = (user.groups || []).filter((id) =>
     mongoose.Types.ObjectId.isValid(id),

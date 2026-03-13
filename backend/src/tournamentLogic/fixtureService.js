@@ -2,16 +2,19 @@ import mongoose from "mongoose";
 import * as fixtureDb from "../models/fixtureSchemaService.js";
 import * as tournamentDb from "../models/tournamentSchemaService.js";
 import * as membershipService from "../groupLogic/membershipService.js";
+import * as userStatsService from "../user/statschemaService.js";
+import * as leagueService from "./leagueTableService.js";
 import { updateGroupMetrics } from "../groupLogic/groupMetric.js";
+import cache from "../lib/cache.js";
 import {
   NotFoundException,
   BadRequestError,
   ConflictException,
 } from "../lib/classes/errorClasses.js";
 
-/**
- * MARK FIXTURE AS COMPLETED AND UPDATE STATS
- */
+// ================================
+// COMPLETE FIXTURE & UPDATE STATS
+// ================================
 export const completeFixture = async ({ fixtureId, results }) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -38,7 +41,7 @@ export const completeFixture = async ({ fixtureId, results }) => {
       { session },
     );
 
-    // Update participant stats in tournament
+    // Update participant stats
     await userStatsService.updateParticipantStats({
       matchId: fixtureId,
       tournamentId: fixture.tournamentId,
@@ -47,8 +50,12 @@ export const completeFixture = async ({ fixtureId, results }) => {
       scheduledDate: fixture.scheduledDate,
     });
 
-    // Recalculate league table (optional: can store historical tables)
+    // Recalculate league table — invalidates its own cache key internally
     await leagueService.generateLeagueTable(fixture.tournamentId);
+
+    // Invalidate remaining cache after table is refreshed
+    await cache.deleteByPattern(`tournament:${fixture.tournamentId}:*`);
+    await cache.deleteByPattern(`user:*:upcoming-fixtures`);
 
     // Update group metrics
     await updateGroupMetrics(
@@ -70,9 +77,9 @@ export const completeFixture = async ({ fixtureId, results }) => {
   }
 };
 
-// -------------------------------
+// ================================
 // GENERATE TOURNAMENT FIXTURES
-// -------------------------------
+// ================================
 export const generateTournamentFixtures = async ({ tournamentId, userId }) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -81,15 +88,14 @@ export const generateTournamentFixtures = async ({ tournamentId, userId }) => {
     const tournament = await tournamentDb.findTournamentById(tournamentId);
     if (!tournament) throw new NotFoundException("Tournament not found");
 
-    // Admin check
     await membershipService.assertIsAdmin({
       userId,
       groupId: tournament.groupId._id || tournament.groupId,
     });
 
-    if (tournament.currentParticipants < 4) {
+    if (tournament.status !== "registration") {
       throw new BadRequestError(
-        "Tournament needs at least 4 participants to generate fixtures",
+        "Can only generate fixtures during registration phase",
       );
     }
 
@@ -98,46 +104,36 @@ export const generateTournamentFixtures = async ({ tournamentId, userId }) => {
       throw new ConflictException("Fixtures already generated");
     }
 
-    if (tournament.status !== "registration") {
-      throw new BadRequestError(
-        "Can only generate fixtures during registration phase",
-      );
-    }
-
-    // Get active participants
     const activeParticipants = tournament.participants
       .filter((p) => p.status === "registered")
       .map((p) => p.userId._id || p.userId);
 
     if (activeParticipants.length < 4) {
       throw new BadRequestError(
-        "Not enough active participants to generate fixtures",
+        "Tournament needs at least 4 participants to generate fixtures",
       );
     }
 
-    // Generate fixtures
     const fixtures =
       tournament.settings.rounds === "double"
         ? generateDoubleRoundRobinFixtures(activeParticipants, tournamentId)
         : generateSingleRoundRobinFixtures(activeParticipants, tournamentId);
 
-    // Save fixtures
     const createdFixtures = await fixtureDb.createFixtures(fixtures, {
       session,
     });
+    const totalMatchdays = Math.max(...fixtures.map((f) => f.matchday));
 
-    // Update tournament metadata
     await tournamentDb.updateTournament(
       tournamentId,
       {
         status: "upcoming",
-        totalMatchdays: Math.max(...fixtures.map((f) => f.matchday)),
+        totalMatchdays,
         currentMatchday: 1,
       },
       { session },
     );
 
-    // Update group metrics
     await updateGroupMetrics(
       tournament.groupId._id || tournament.groupId,
       session,
@@ -146,10 +142,12 @@ export const generateTournamentFixtures = async ({ tournamentId, userId }) => {
     await session.commitTransaction();
     session.endSession();
 
+    await cache.deleteByPattern(`tournament:${tournamentId}:*`);
+
     return {
       message: "Fixtures generated successfully",
       fixturesCount: createdFixtures.length,
-      totalMatchdays: Math.max(...fixtures.map((f) => f.matchday)),
+      totalMatchdays,
       fixtures: createdFixtures,
     };
   } catch (error) {
@@ -159,9 +157,9 @@ export const generateTournamentFixtures = async ({ tournamentId, userId }) => {
   }
 };
 
-// -------------------------------
+// ================================
 // REGENERATE FIXTURES (ADMIN ONLY)
-// -------------------------------
+// ================================
 export const regenerateFixtures = async ({ tournamentId, userId }) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -170,7 +168,6 @@ export const regenerateFixtures = async ({ tournamentId, userId }) => {
     const tournament = await tournamentDb.findTournamentById(tournamentId);
     if (!tournament) throw new NotFoundException("Tournament not found");
 
-    // Admin check
     await membershipService.assertIsAdmin({
       userId,
       groupId: tournament.groupId._id || tournament.groupId,
@@ -178,14 +175,12 @@ export const regenerateFixtures = async ({ tournamentId, userId }) => {
 
     if (tournament.status === "ongoing") {
       throw new BadRequestError(
-        "Cannot regenerate fixtures for ongoing tournament",
+        "Cannot regenerate fixtures for an ongoing tournament",
       );
     }
 
-    // Delete existing fixtures
     await fixtureDb.deleteAllFixtures(tournamentId, { session });
 
-    // Reset tournament
     await tournamentDb.updateTournament(
       tournamentId,
       {
@@ -196,12 +191,11 @@ export const regenerateFixtures = async ({ tournamentId, userId }) => {
       { session },
     );
 
-    // Generate new fixtures
-    const result = await generateTournamentFixtures({ tournamentId, userId });
-
     await session.commitTransaction();
     session.endSession();
 
+    // Run outside the original session — generateTournamentFixtures opens its own
+    const result = await generateTournamentFixtures({ tournamentId, userId });
     return result;
   } catch (error) {
     await session.abortTransaction();
@@ -210,58 +204,6 @@ export const regenerateFixtures = async ({ tournamentId, userId }) => {
   }
 };
 
-// -------------------------------
-// HELPER: ROUND-ROBIN FIXTURES
-// -------------------------------
-const generateSingleRoundRobinFixtures = (participants, tournamentId) => {
-  const fixtures = [];
-  const n = participants.length;
-  let matchday = 1;
-
-  const extendedParticipants =
-    n % 2 === 0 ? participants : [...participants, null];
-  const totalRounds = extendedParticipants.length - 1;
-
-  for (let round = 0; round < totalRounds; round++) {
-    for (let match = 0; match < extendedParticipants.length / 2; match++) {
-      const home = (round + match) % totalRounds;
-      const away = (totalRounds - match + round) % totalRounds;
-
-      const homeTeam =
-        home === totalRounds
-          ? extendedParticipants[totalRounds]
-          : extendedParticipants[home];
-      const awayTeam =
-        away === totalRounds
-          ? extendedParticipants[totalRounds]
-          : extendedParticipants[away];
-
-      if (homeTeam && awayTeam && homeTeam !== awayTeam) {
-        fixtures.push({ tournamentId, matchday, homeTeam, awayTeam });
-      }
-    }
-    matchday++;
-  }
-
-  return fixtures;
-};
-
-const generateDoubleRoundRobinFixtures = (participants, tournamentId) => {
-  const firstRound = generateSingleRoundRobinFixtures(
-    participants,
-    tournamentId,
-  );
-  const maxMatchday = Math.max(...firstRound.map((f) => f.matchday));
-
-  const secondRound = firstRound.map((f) => ({
-    ...f,
-    matchday: f.matchday + maxMatchday,
-    homeTeam: f.awayTeam,
-    awayTeam: f.homeTeam,
-  }));
-
-  return [...firstRound, ...secondRound];
-};
 // ================================
 // FIXTURE QUERIES
 // ================================
@@ -288,8 +230,10 @@ export const getMatchdayFixtures = async ({ tournamentId, matchday }) => {
   const tournament = await tournamentDb.findTournamentById(tournamentId);
   if (!tournament) throw new NotFoundException("Tournament not found");
 
-  const fixtures = await fixtureDb.getMatchdayFixtures(tournamentId, matchday);
-  const stats = await fixtureDb.getMatchdayStats(tournamentId, matchday);
+  const [fixtures, stats] = await Promise.all([
+    fixtureDb.getMatchdayFixtures(tournamentId, matchday),
+    fixtureDb.getMatchdayStats(tournamentId, matchday),
+  ]);
 
   return {
     tournament: { id: tournament._id, name: tournament.name },
@@ -316,29 +260,104 @@ export const getTeamFixtures = async ({ tournamentId, teamId }) => {
 };
 
 // ================================
-// ADMIN OPERATIONS
+// START TOURNAMENT (ADMIN ONLY)
 // ================================
-
 export const startTournament = async ({ tournamentId, userId }) => {
-  const tournament = await tournamentDb.findTournamentById(tournamentId);
-  if (!tournament) throw new NotFoundException("Tournament not found");
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  await membershipService.assertIsAdmin({
-    userId,
-    groupId: tournament.groupId._id || tournament.groupId,
-  });
+  try {
+    const tournament = await tournamentDb.findTournamentById(tournamentId);
+    if (!tournament) throw new NotFoundException("Tournament not found");
 
-  const fixturesExist = await fixtureDb.fixturesExist(tournamentId);
-  if (!fixturesExist)
-    throw new BadRequestError("Generate fixtures before starting tournament");
+    await membershipService.assertIsAdmin({
+      userId,
+      groupId: tournament.groupId._id || tournament.groupId,
+    });
 
-  await tournamentDb.updateTournament(tournamentId, {
-    status: "ongoing",
-    startDate: new Date(),
-  });
+    const fixturesExist = await fixtureDb.fixturesExist(tournamentId);
+    if (!fixturesExist) {
+      throw new BadRequestError(
+        "Generate fixtures before starting the tournament",
+      );
+    }
 
-  // Update group metrics for active tournaments
-  await updateGroupMetrics(tournament.groupId);
+    await tournamentDb.updateTournament(
+      tournamentId,
+      {
+        status: "ongoing",
+        startDate: new Date(),
+        currentMatchday: 1,
+      },
+      { session },
+    );
 
-  return { message: "Tournament started successfully", status: "ongoing" };
+    await updateGroupMetrics(
+      tournament.groupId._id || tournament.groupId,
+      session,
+    );
+
+    await session.commitTransaction();
+    session.endSession();
+
+    await cache.deleteByPattern(`tournament:${tournamentId}:*`);
+
+    return { message: "Tournament started successfully", status: "ongoing" };
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
+};
+
+// ================================
+// HELPERS: ROUND-ROBIN GENERATION
+// ================================
+const generateSingleRoundRobinFixtures = (participants, tournamentId) => {
+  const fixtures = [];
+  const n = participants.length;
+  const extendedParticipants =
+    n % 2 === 0 ? participants : [...participants, null];
+  const totalRounds = extendedParticipants.length - 1;
+  let matchday = 1;
+
+  for (let round = 0; round < totalRounds; round++) {
+    for (let match = 0; match < extendedParticipants.length / 2; match++) {
+      const homeIdx = (round + match) % totalRounds;
+      const awayIdx = (totalRounds - match + round) % totalRounds;
+
+      const homeTeam =
+        homeIdx === totalRounds
+          ? extendedParticipants[totalRounds]
+          : extendedParticipants[homeIdx];
+      const awayTeam =
+        awayIdx === totalRounds
+          ? extendedParticipants[totalRounds]
+          : extendedParticipants[awayIdx];
+
+      if (homeTeam && awayTeam && homeTeam !== awayTeam) {
+        fixtures.push({ tournamentId, matchday, homeTeam, awayTeam });
+      }
+    }
+    matchday++;
+  }
+
+  return fixtures;
+};
+
+const generateDoubleRoundRobinFixtures = (participants, tournamentId) => {
+  const firstRound = generateSingleRoundRobinFixtures(
+    participants,
+    tournamentId,
+  );
+  const maxMatchday = Math.max(...firstRound.map((f) => f.matchday));
+
+  const secondRound = firstRound.map((f) => ({
+    ...f,
+    matchday: f.matchday + maxMatchday,
+    homeTeam: f.awayTeam,
+    awayTeam: f.homeTeam,
+  }));
+
+  return [...firstRound, ...secondRound];
 };

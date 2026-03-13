@@ -1,5 +1,5 @@
 import Redis from "ioredis";
-import configService from "./classes/configClass.js";
+import configService from "../lib/classes/configClass.js";
 
 export const bullMQRedis = new Redis({
   host: configService.getOrThrow("REDIS_HOST"),

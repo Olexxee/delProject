@@ -4,17 +4,22 @@ import {
   getTournament,
   getGroupTournaments,
   updateTournament,
+  getAllTournaments,
   cancelTournament,
   checkTournamentReadiness,
   startTournament,
   getTournamentTable,
+  joinTournament,
 } from "../tournamentLogic/tournamentController.js";
 import {
   createTournamentSchema,
   updateTournamentSchema,
 } from "../tournamentLogic/tournamentRequestSchema.js";
 import { validateBody } from "../middlewares/validatorMiddleware.js";
-import { authMiddleware } from "../middlewares/authenticationMdw.js";
+import {
+  authMiddleware,
+  optionalAuth,
+} from "../middlewares/authenticationMdw.js";
 import { requireGroupAdmin } from "../admin/adminMiddleware.js";
 
 const tournamentRouter = Router();
@@ -22,6 +27,10 @@ const tournamentRouter = Router();
 // --------------------
 // TOURNAMENT CRUD
 // --------------------
+
+// Get tournament details — optionalAuth so userId is available when logged in
+// but the route stays public for guests
+tournamentRouter.get("/:tournamentId", optionalAuth, getTournament);
 
 // Create tournament (group admin only)
 tournamentRouter.post(
@@ -32,8 +41,8 @@ tournamentRouter.post(
   createTournament,
 );
 
-// Get tournament details (includes fixture summary)
-tournamentRouter.get("/:tournamentId", getTournament);
+// Get all tournaments
+tournamentRouter.get("/", getAllTournaments);
 
 // Get all tournaments for a group
 tournamentRouter.get("/group/:groupId", getGroupTournaments);
@@ -58,7 +67,10 @@ tournamentRouter.delete(
 // TOURNAMENT OPERATIONS
 // --------------------
 
-// Check readiness (any authenticated user)
+// Join group + tournament in one action (authenticated)
+tournamentRouter.post("/:tournamentId/join", authMiddleware, joinTournament);
+
+// Check readiness
 tournamentRouter.get(
   "/:tournamentId/readiness",
   authMiddleware,

@@ -13,6 +13,17 @@ export const findTournamentById = async (tournamentId) => {
     .populate("participants.userId", "username email");
 };
 
+export const findAllTournaments = async (filter, skip, limit) => {
+  return Tournament.find(filter)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+};
+
+export const countTournaments = async (filter) => {
+  return Tournament.countDocuments(filter);
+};
+
 // Find tournaments by group
 export const findTournamentsByGroup = async (groupId, status = null) => {
   if (groupId && typeof groupId === "object" && groupId.groupId) {

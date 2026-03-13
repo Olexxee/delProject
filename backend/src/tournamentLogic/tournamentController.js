@@ -30,23 +30,35 @@ export const createTournament = asyncWrapper(async (req, res) => {
   });
 });
 
-// ================================
-// GET TOURNAMENT DETAILS (WITH USER CONTEXT + NEXT MATCH)
-// ================================
-export const getTournament = asyncWrapper(async (req, res) => {
+export const getTournament = asyncWrapper(async (req, res, next) => {
   const { tournamentId } = req.params;
-  const userId = req.user._id;
 
-  const tournamentPreview = await tournamentService.getTournamentPreview(
+  const userId = req.user?._id ?? req.user?.id ?? null;
+
+  const tournament = await tournamentService.getTournamentById(
     tournamentId,
     userId,
   );
 
-  res.status(200).json({
+  res.json({
     success: true,
-    tournament: tournamentPreview.tournament,
-    userContext: tournamentPreview.userContext,
-    nextMatch: tournamentPreview.nextMatch,
+    tournament,
+  });
+});
+
+export const joinTournament = asyncWrapper(async (req, res) => {
+  const { tournamentId } = req.params;
+
+  const userId = req.user?._id ?? req.user?.id;
+
+  const result = await tournamentService.joinGroupAndTournament({
+    tournamentId,
+    userId,
+  });
+
+  res.json({
+    success: true,
+    ...result,
   });
 });
 
@@ -118,6 +130,22 @@ export const checkTournamentReadiness = asyncWrapper(async (req, res) => {
   res.status(200).json({
     success: true,
     readiness,
+  });
+});
+
+export const getAllTournaments = asyncWrapper(async (req, res) => {
+  const { page = 1, limit = 10, status } = req.query;
+
+  const result = await tournamentService.getAllTournaments({
+    page: Number(page),
+    limit: Number(limit),
+    status,
+  });
+
+  res.status(200).json({
+    success: true,
+    tournaments: result.tournaments,
+    pagination: result.pagination,
   });
 });
 
