@@ -14,6 +14,16 @@
             "date": 1773402906913,
             "name": "logs\\warn-2026-03-13.log",
             "hash": "a6969c4f62c225f0be110d6b411c514c4cf7afeefb700aef39c4ae12611a6f91"
+        },
+        {
+            "date": 1773607874697,
+            "name": "logs\\warn-2026-03-15.log",
+            "hash": "19089f135fdf13be743514f6b930f5ff126c42e6eade617f1d2a778de381a800"
+        },
+        {
+            "date": 1773659080563,
+            "name": "logs\\warn-2026-03-16.log",
+            "hash": "6fda81f1bd35a56d702d2ea6227d8f3b5b9485ed9e14c097d0b13c276f25920c"
         }
     ],
     "hashType": "sha256"
